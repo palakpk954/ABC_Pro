@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, ForeignKey
+
+from sqlalchemy import Column, DateTime, ForeignKey, String
 from sqlalchemy.orm import declared_attr
+
 from app.core.database import Base
 
 

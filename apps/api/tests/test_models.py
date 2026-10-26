@@ -1,22 +1,19 @@
-from datetime import date, timedelta
+from datetime import date
+
+from app.core.security import get_password_hash
 from app.models import (
-    Organization,
-    User,
-    UserRole,
-    Skill,
+    AuditLog,
     Employee,
     EmployeeSkill,
-    EmployeeLeave,
-    Project,
-    ProjectRole,
-    ProjectRoleSkill,
+    Organization,
     Plan,
     PlanStatus,
-    Assignment,
-    Scenario,
-    AuditLog,
+    Project,
+    ProjectRole,
+    Skill,
+    User,
+    UserRole,
 )
-from app.core.security import get_password_hash
 
 
 def test_organization_and_user_creation(db, test_org):

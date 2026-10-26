@@ -1,6 +1,8 @@
 import enum
-from sqlalchemy import Column, String, Boolean, Enum
+
+from sqlalchemy import Boolean, Column, Enum, String
 from sqlalchemy.orm import relationship
+
 from app.models.base import TenantModel
 
 

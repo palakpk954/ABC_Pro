@@ -1,6 +1,19 @@
 import enum
-from sqlalchemy import Column, String, Integer, Float, Date, Boolean, JSON, ForeignKey, Enum, DateTime
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+)
 from sqlalchemy.orm import relationship
+
 from app.models.base import TenantModel
 
 

@@ -9,9 +9,7 @@ Includes:
 - 6 Employee Leave entries across the 12-week planning horizon
 """
 
-from datetime import date, timedelta
-from typing import Dict, Any, List
-
+from datetime import date
 
 DEFAULT_ORG_NAME = "Acme Consulting Services"
 DEFAULT_START_DATE = date(2026, 11, 2)  # Starting Monday of planning horizon

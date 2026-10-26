@@ -4,42 +4,43 @@ Usage:
     python -m app.scripts.seed
 """
 
-import sys
 import os
-from datetime import date, timedelta
+import sys
+from datetime import timedelta
 from typing import Dict, List
 
 # Ensure apps/api is in Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from sqlalchemy.orm import Session
-from app.core.database import SessionLocal, engine, Base
+
+from app.core.database import Base, SessionLocal, engine
 from app.core.security import get_password_hash
-from app.models import (
-    Organization,
-    User,
-    UserRole,
-    Skill,
-    Employee,
-    EmployeeSkill,
-    EmployeeLeave,
-    Project,
-    ProjectRole,
-    ProjectRoleSkill,
-)
 from app.db.seed_data import (
     DEFAULT_ORG_NAME,
     DEFAULT_START_DATE,
-    USERS_DATA,
-    SKILLS_DATA,
     EMPLOYEES_RAW,
-    PROJECTS_DATA,
     LEAVES_DATA,
+    PROJECTS_DATA,
+    SKILLS_DATA,
+    USERS_DATA,
+)
+from app.models import (
+    Employee,
+    EmployeeLeave,
+    EmployeeSkill,
+    Organization,
+    Project,
+    ProjectRole,
+    ProjectRoleSkill,
+    Skill,
+    User,
+    UserRole,
 )
 
 
 def seed_database(db: Session) -> Dict[str, int]:
-    print("🌱 Starting Allocate database seeding...")
+    print("[INFO] Starting Allocate database seeding...")
 
     # Ensure tables exist (especially helpful in dev / sqlite mode)
     Base.metadata.create_all(bind=engine)
@@ -173,7 +174,7 @@ def seed_database(db: Session) -> Dict[str, int]:
                 if goal_skill in skill_map:
                     # Check if already in skills_to_assign
                     found = False
-                    for i, (s_name, prof, target) in enumerate(skills_to_assign):
+                    for i, (s_name, prof, _target) in enumerate(skills_to_assign):
                         if s_name == goal_skill:
                             skills_to_assign[i] = (s_name, prof, max(prof + 1, 4))
                             found = True

@@ -1,9 +1,9 @@
+from app.models import Employee, EmployeeLeave, Organization, Project, ProjectRole, Skill, User
 from app.scripts.seed import seed_database
-from app.models import Organization, User, Skill, Employee, Project, EmployeeLeave, ProjectRole
 
 
 def test_seed_database_executes_and_populates_data(db):
-    results = seed_database(db)
+    seed_database(db)
 
     # 1. Organization
     org = db.query(Organization).first()

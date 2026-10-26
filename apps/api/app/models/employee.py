@@ -1,5 +1,16 @@
-from sqlalchemy import Column, String, Integer, Float, Date, Boolean, JSON, ForeignKey, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    Date,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
+
 from app.models.base import TenantModel
 
 

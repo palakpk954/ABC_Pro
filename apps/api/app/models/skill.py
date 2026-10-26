@@ -1,5 +1,6 @@
-from sqlalchemy import Column, String, Integer, Text, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
+
 from app.models.base import TenantModel
 
 
