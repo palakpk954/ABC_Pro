@@ -1,0 +1,37 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import settings
+
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    description="Allocate - AI-Assisted Resource Allocation & Optimization Platform API",
+    version="0.1.0",
+)
+
+if settings.CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
+@app.get("/health", tags=["System"])
+def health_check():
+    return {
+        "status": "healthy",
+        "service": "allocate-api",
+        "version": "0.1.0",
+        "environment": settings.ENVIRONMENT,
+    }
+
+
+@app.get("/", tags=["System"])
+def root():
+    return {
+        "message": "Welcome to Allocate API. Visit /docs for interactive Swagger API documentation.",
+        "version": "0.1.0",
+    }
