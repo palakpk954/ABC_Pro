@@ -125,14 +125,21 @@ def seed_database(db: Session) -> Dict[str, int]:
             # Assign skill proficiencies based on role
             skills_to_assign = []
             if emp_role == "Tech Lead":
+                # Varied specializations for Tech Leads
+                react_prof = 4 if "Jenkins" in emp_name or "Sato" in emp_name else 3
+                fastapi_prof = 4 if "Jenkins" in emp_name or "Rostova" in emp_name else 3
+                ml_prof = 4 if "Rostova" in emp_name else 2
                 skills_to_assign = [
                     ("System Design", 5, None),
                     ("AWS Cloud", 4, None),
                     ("Docker & K8s", 4, None),
                     ("Python", 4, None),
+                    ("FastAPI", fastapi_prof, None),
                     ("Go", 4, None),
                     ("PostgreSQL", 4, None),
-                    ("React", 3, None),
+                    ("React", react_prof, None),
+                    ("TypeScript", 4, None),
+                    ("Machine Learning", ml_prof, None),
                 ]
             elif emp_role == "Senior Backend Engineer":
                 skills_to_assign = [
