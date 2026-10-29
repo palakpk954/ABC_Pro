@@ -1,21 +1,28 @@
-from typing import Optional, List
-from datetime import date
-from pydantic import BaseModel, Field, ConfigDict
+from datetime import date, datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
+
+from app.schemas.skill import SkillResponse
 
 
-class ProjectRoleSkillCreate(BaseModel):
+class ProjectRoleSkillBase(BaseModel):
     skill_id: str
-    min_proficiency: int = Field(..., ge=1, le=5)
+    min_proficiency: int = Field(default=3, ge=1, le=5)
 
 
-class ProjectRoleSkillResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+class ProjectRoleSkillCreate(ProjectRoleSkillBase):
+    pass
 
+
+class ProjectRoleSkillResponse(ProjectRoleSkillBase):
     id: str
+    org_id: str
     project_role_id: str
-    skill_id: str
-    skill_name: Optional[str] = None
-    min_proficiency: int
+    skill: Optional[SkillResponse] = None
+
+    class Config:
+        from_attributes = True
 
 
 class ProjectRoleBase(BaseModel):
@@ -27,24 +34,26 @@ class ProjectRoleBase(BaseModel):
 
 
 class ProjectRoleCreate(ProjectRoleBase):
-    skills: List[ProjectRoleSkillCreate] = Field(default_factory=list)
+    skill_requirements: Optional[List[ProjectRoleSkillCreate]] = None
 
 
 class ProjectRoleUpdate(BaseModel):
-    role_title: Optional[str] = Field(None, max_length=100)
-    hours_per_week: Optional[int] = Field(None, ge=1, le=80)
+    role_title: Optional[str] = None
+    hours_per_week: Optional[int] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     is_stretch_allowed: Optional[bool] = None
-    skills: Optional[List[ProjectRoleSkillCreate]] = None
 
 
 class ProjectRoleResponse(ProjectRoleBase):
-    model_config = ConfigDict(from_attributes=True)
-
     id: str
+    org_id: str
     project_id: str
+    created_at: datetime
     skill_requirements: List[ProjectRoleSkillResponse] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True
 
 
 class ProjectBase(BaseModel):
@@ -56,28 +65,31 @@ class ProjectBase(BaseModel):
     billing_rate_hourly: Optional[float] = None
     priority: int = Field(default=3, ge=1, le=5)
     mandatory: bool = False
-    status: str = Field(default="proposed", max_length=50)
+    status: str = Field(default="proposed")  # proposed, active, completed, cancelled
 
 
 class ProjectCreate(ProjectBase):
-    roles: List[ProjectRoleCreate] = Field(default_factory=list)
+    roles: Optional[List[ProjectRoleCreate]] = None
 
 
 class ProjectUpdate(BaseModel):
-    name: Optional[str] = Field(None, max_length=255)
-    client: Optional[str] = Field(None, max_length=255)
+    name: Optional[str] = None
+    client: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    revenue: Optional[float] = Field(None, ge=0.0)
+    revenue: Optional[float] = None
     billing_rate_hourly: Optional[float] = None
-    priority: Optional[int] = Field(None, ge=1, le=5)
+    priority: Optional[int] = None
     mandatory: Optional[bool] = None
     status: Optional[str] = None
 
 
 class ProjectResponse(ProjectBase):
-    model_config = ConfigDict(from_attributes=True)
-
     id: str
     org_id: str
+    created_at: datetime
+    updated_at: datetime
     roles: List[ProjectRoleResponse] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True

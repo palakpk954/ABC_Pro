@@ -1,5 +1,7 @@
+from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, Field
 
 
 class SkillBase(BaseModel):
@@ -19,30 +21,10 @@ class SkillUpdate(BaseModel):
 
 
 class SkillResponse(SkillBase):
-    model_config = ConfigDict(from_attributes=True)
-
     id: str
     org_id: str
+    created_at: datetime
+    updated_at: datetime
 
-
-class EmployeeSkillCreate(BaseModel):
-    skill_id: str
-    proficiency: int = Field(..., ge=1, le=5)
-    growth_target: Optional[int] = Field(None, ge=1, le=5)
-
-
-class EmployeeSkillUpdate(BaseModel):
-    proficiency: Optional[int] = Field(None, ge=1, le=5)
-    growth_target: Optional[int] = Field(None, ge=1, le=5)
-
-
-class EmployeeSkillResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    employee_id: str
-    skill_id: str
-    skill_name: Optional[str] = None
-    skill_category: Optional[str] = None
-    proficiency: int
-    growth_target: Optional[int] = None
+    class Config:
+        from_attributes = True

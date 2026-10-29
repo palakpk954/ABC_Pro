@@ -1,256 +1,227 @@
-"""CSV Ingestion & Row-Level Validation Service
-
-Parses and validates CSV data for Skills, Employees, Projects, and Roles,
-returning detailed row-level validation errors.
-"""
-
-import io
 import csv
-from datetime import datetime, date
-from typing import List, Dict, Any, Tuple, Optional
+import io
+from datetime import date, datetime
+from typing import List, Optional
+
 from sqlalchemy.orm import Session
 
-from app.models import (
-    Skill,
-    Employee,
-    Project,
-    ProjectRole,
-)
-from app.schemas.import_csv import CSVImportResult, RowValidationError
+from app.models.employee import Employee
+from app.models.project import Project, ProjectRole
+from app.models.skill import Skill
+from app.schemas.import_export import CSVImportSummary, CSVRowError
+from app.services.audit_service import log_audit
 
 
 def parse_date(date_str: str) -> Optional[date]:
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"):
-        try:
-            return datetime.strptime(date_str.strip(), fmt).date()
-        except ValueError:
-            continue
-    return None
+    try:
+        return datetime.strptime(date_str.strip(), "%Y-%m-%d").date()
+    except Exception:
+        return None
 
 
-def import_skills_csv(db: Session, org_id: str, content: str) -> CSVImportResult:
-    reader = csv.DictReader(io.StringIO(content))
-    errors: List[RowValidationError] = []
-    imported = 0
-    total = 0
+def import_csv_data(
+    entity_type: str,
+    csv_content: str,
+    org_id: str,
+    db: Session,
+    user_id: Optional[str] = None,
+) -> CSVImportSummary:
+    """Parses and validates CSV content for employees, skills, projects, or roles."""
+    f = io.StringIO(csv_content)
+    reader = csv.DictReader(f)
 
-    if not reader.fieldnames or "name" not in reader.fieldnames or "category" not in reader.fieldnames:
-        return CSVImportResult(
-            entity_type="skills",
+    errors: List[CSVRowError] = []
+    imported_ids: List[str] = []
+    row_num = 1  # 1-indexed, header is row 1
+
+    if not reader.fieldnames:
+        return CSVImportSummary(
+            entity_type=entity_type,
             total_rows=0,
-            imported_rows=0,
+            successful_rows=0,
             failed_rows=0,
-            errors=[RowValidationError(row_number=1, field="header", error_message="CSV must include 'name' and 'category' columns")],
-            message="Invalid CSV header",
+            errors=[CSVRowError(row_number=1, error_message="Empty CSV or missing header")],
         )
 
-    for idx, row in enumerate(reader, start=2):
-        total += 1
-        name = row.get("name", "").strip()
-        category = row.get("category", "").strip()
-        desc = row.get("description", "").strip() or None
+    for row in reader:
+        row_num += 1
+        # Strip all keys and values
+        clean_row = {k.strip(): (v.strip() if v else "") for k, v in row.items() if k}
 
-        if not name:
-            errors.append(RowValidationError(row_number=idx, field="name", error_message="Skill name cannot be empty"))
-            continue
-        if not category:
-            errors.append(RowValidationError(row_number=idx, field="category", error_message="Skill category cannot be empty"))
-            continue
+        if entity_type == "skills":
+            name = clean_row.get("name")
+            category = clean_row.get("category", "General")
+            desc = clean_row.get("description", "")
 
-        existing = db.query(Skill).filter(Skill.org_id == org_id, Skill.name == name).first()
-        if not existing:
-            new_skill = Skill(org_id=org_id, name=name, category=category, description=desc)
-            db.add(new_skill)
-            imported += 1
-        else:
-            existing.category = category
-            if desc:
+            if not name:
+                errors.append(CSVRowError(row_number=row_num, field="name", error_message="Skill name is required"))
+                continue
+
+            existing = db.query(Skill).filter(Skill.org_id == org_id, Skill.name == name).first()
+            if existing:
+                existing.category = category
                 existing.description = desc
-            imported += 1
+                imported_ids.append(existing.id)
+            else:
+                new_skill = Skill(org_id=org_id, name=name, category=category, description=desc)
+                db.add(new_skill)
+                db.flush()
+                imported_ids.append(new_skill.id)
+
+        elif entity_type == "employees":
+            name = clean_row.get("name")
+            email = clean_row.get("email")
+            role = clean_row.get("role", "Developer")
+            cost_str = clean_row.get("cost_per_hour", "60.0")
+
+            if not name or not email:
+                errors.append(CSVRowError(row_number=row_num, field="name/email", error_message="Name and email are required"))
+                continue
+
+            try:
+                cost = float(cost_str)
+            except ValueError:
+                errors.append(CSVRowError(row_number=row_num, field="cost_per_hour", value=cost_str, error_message="Invalid float"))
+                continue
+
+            cap = int(clean_row.get("weekly_capacity_hours") or 40)
+            ot = int(clean_row.get("max_overtime_hours") or 10)
+            goals_raw = clean_row.get("career_goals", "")
+            career_goals = [g.strip() for g in goals_raw.split(";") if g.strip()]
+
+            existing = db.query(Employee).filter(Employee.org_id == org_id, Employee.email == email).first()
+            if existing:
+                existing.name = name
+                existing.role = role
+                existing.cost_per_hour = cost
+                existing.weekly_capacity_hours = cap
+                existing.max_overtime_hours = ot
+                existing.career_goals = career_goals
+                imported_ids.append(existing.id)
+            else:
+                new_emp = Employee(
+                    org_id=org_id,
+                    name=name,
+                    email=email,
+                    role=role,
+                    cost_per_hour=cost,
+                    weekly_capacity_hours=cap,
+                    max_overtime_hours=ot,
+                    career_goals=career_goals,
+                )
+                db.add(new_emp)
+                db.flush()
+                imported_ids.append(new_emp.id)
+
+        elif entity_type == "projects":
+            name = clean_row.get("name")
+            client = clean_row.get("client")
+            st_date_str = clean_row.get("start_date")
+            en_date_str = clean_row.get("end_date")
+            rev_str = clean_row.get("revenue", "0.0")
+
+            if not name or not client or not st_date_str or not en_date_str:
+                errors.append(CSVRowError(row_number=row_num, error_message="Name, client, start_date, and end_date are required"))
+                continue
+
+            st_date = parse_date(st_date_str)
+            en_date = parse_date(en_date_str)
+            if not st_date or not en_date:
+                errors.append(CSVRowError(row_number=row_num, error_message="Invalid date format. Expected YYYY-MM-DD"))
+                continue
+
+            try:
+                rev = float(rev_str)
+            except ValueError:
+                errors.append(CSVRowError(row_number=row_num, field="revenue", value=rev_str, error_message="Invalid float"))
+                continue
+
+            prio = int(clean_row.get("priority") or 3)
+            mand = clean_row.get("mandatory", "false").lower() in ["true", "1", "yes"]
+
+            existing = db.query(Project).filter(Project.org_id == org_id, Project.name == name).first()
+            if existing:
+                existing.client = client
+                existing.start_date = st_date
+                existing.end_date = en_date
+                existing.revenue = rev
+                existing.priority = prio
+                existing.mandatory = mand
+                imported_ids.append(existing.id)
+            else:
+                new_proj = Project(
+                    org_id=org_id,
+                    name=name,
+                    client=client,
+                    start_date=st_date,
+                    end_date=en_date,
+                    revenue=rev,
+                    priority=prio,
+                    mandatory=mand,
+                    status=clean_row.get("status", "proposed"),
+                )
+                db.add(new_proj)
+                db.flush()
+                imported_ids.append(new_proj.id)
+
+        elif entity_type == "roles":
+            proj_name_or_id = clean_row.get("project_name_or_id")
+            role_title = clean_row.get("role_title")
+            st_date_str = clean_row.get("start_date")
+            en_date_str = clean_row.get("end_date")
+
+            if not proj_name_or_id or not role_title or not st_date_str or not en_date_str:
+                errors.append(CSVRowError(row_number=row_num, error_message="project_name_or_id, role_title, start_date, and end_date are required"))
+                continue
+
+            proj = db.query(Project).filter(
+                Project.org_id == org_id,
+                (Project.id == proj_name_or_id) | (Project.name == proj_name_or_id),
+            ).first()
+            if not proj:
+                errors.append(CSVRowError(row_number=row_num, field="project_name_or_id", error_message=f"Project '{proj_name_or_id}' not found"))
+                continue
+
+            st_date = parse_date(st_date_str)
+            en_date = parse_date(en_date_str)
+            if not st_date or not en_date:
+                errors.append(CSVRowError(row_number=row_num, error_message="Invalid date format. Expected YYYY-MM-DD"))
+                continue
+
+            hrs = int(clean_row.get("hours_per_week") or 40)
+            stretch = clean_row.get("is_stretch_allowed", "false").lower() in ["true", "1", "yes"]
+
+            new_role = ProjectRole(
+                org_id=org_id,
+                project_id=proj.id,
+                role_title=role_title,
+                hours_per_week=hrs,
+                start_date=st_date,
+                end_date=en_date,
+                is_stretch_allowed=stretch,
+            )
+            db.add(new_role)
+            db.flush()
+            imported_ids.append(new_role.id)
 
     db.commit()
-    return CSVImportResult(
-        entity_type="skills",
-        total_rows=total,
-        imported_rows=imported,
-        failed_rows=len(errors),
-        errors=errors,
-        message=f"Successfully imported {imported} of {total} skills",
+
+    log_audit(
+        db=db,
+        org_id=org_id,
+        action=f"import_csv_{entity_type}",
+        entity_type=entity_type,
+        entity_id="bulk_import",
+        user_id=user_id,
+        after_state={"imported_count": len(imported_ids), "errors_count": len(errors)},
     )
 
-
-def import_employees_csv(db: Session, org_id: str, content: str) -> CSVImportResult:
-    reader = csv.DictReader(io.StringIO(content))
-    errors: List[RowValidationError] = []
-    imported = 0
-    total = 0
-
-    required_fields = ["name", "email", "role", "cost_per_hour", "start_date"]
-    if not reader.fieldnames or any(rf not in reader.fieldnames for rf in required_fields):
-        return CSVImportResult(
-            entity_type="employees",
-            total_rows=0,
-            imported_rows=0,
-            failed_rows=0,
-            errors=[RowValidationError(row_number=1, field="header", error_message=f"CSV must include columns: {', '.join(required_fields)}")],
-            message="Invalid CSV header",
-        )
-
-    for idx, row in enumerate(reader, start=2):
-        total += 1
-        name = row.get("name", "").strip()
-        email = row.get("email", "").strip()
-        role = row.get("role", "").strip()
-        cost_str = row.get("cost_per_hour", "").strip()
-        start_str = row.get("start_date", "").strip()
-
-        if not name:
-            errors.append(RowValidationError(row_number=idx, field="name", error_message="Name is required"))
-            continue
-        if "@" not in email or "." not in email:
-            errors.append(RowValidationError(row_number=idx, field="email", value=email, error_message="Invalid email address"))
-            continue
-        if not role:
-            errors.append(RowValidationError(row_number=idx, field="role", error_message="Role is required"))
-            continue
-
-        try:
-            cost = float(cost_str)
-            if cost <= 0:
-                raise ValueError()
-        except ValueError:
-            errors.append(RowValidationError(row_number=idx, field="cost_per_hour", value=cost_str, error_message="Cost per hour must be a positive number"))
-            continue
-
-        start_d = parse_date(start_str)
-        if not start_d:
-            errors.append(RowValidationError(row_number=idx, field="start_date", value=start_str, error_message="Invalid date format (use YYYY-MM-DD)"))
-            continue
-
-        cap = int(row.get("weekly_capacity_hours", 40) or 40)
-        ot = int(row.get("max_overtime_hours", 10) or 10)
-
-        existing = db.query(Employee).filter(Employee.org_id == org_id, Employee.email == email).first()
-        if not existing:
-            emp = Employee(
-                org_id=org_id,
-                name=name,
-                email=email,
-                role=role,
-                cost_per_hour=cost,
-                weekly_capacity_hours=cap,
-                max_overtime_hours=ot,
-                start_date=start_d,
-                career_goals=[],
-            )
-            db.add(emp)
-        else:
-            existing.name = name
-            existing.role = role
-            existing.cost_per_hour = cost
-            existing.weekly_capacity_hours = cap
-            existing.max_overtime_hours = ot
-
-        imported += 1
-
-    db.commit()
-    return CSVImportResult(
-        entity_type="employees",
+    total = row_num - 1
+    return CSVImportSummary(
+        entity_type=entity_type,
         total_rows=total,
-        imported_rows=imported,
+        successful_rows=len(imported_ids),
         failed_rows=len(errors),
         errors=errors,
-        message=f"Successfully imported {imported} of {total} employees",
-    )
-
-
-def import_projects_csv(db: Session, org_id: str, content: str) -> CSVImportResult:
-    reader = csv.DictReader(io.StringIO(content))
-    errors: List[RowValidationError] = []
-    imported = 0
-    total = 0
-
-    required_fields = ["name", "client", "start_date", "end_date", "revenue"]
-    if not reader.fieldnames or any(rf not in reader.fieldnames for rf in required_fields):
-        return CSVImportResult(
-            entity_type="projects",
-            total_rows=0,
-            imported_rows=0,
-            failed_rows=0,
-            errors=[RowValidationError(row_number=1, field="header", error_message=f"CSV must include columns: {', '.join(required_fields)}")],
-            message="Invalid CSV header",
-        )
-
-    for idx, row in enumerate(reader, start=2):
-        total += 1
-        name = row.get("name", "").strip()
-        client = row.get("client", "").strip()
-        start_str = row.get("start_date", "").strip()
-        end_str = row.get("end_date", "").strip()
-        rev_str = row.get("revenue", "").strip()
-        priority_str = row.get("priority", "3").strip()
-        mand_str = row.get("mandatory", "false").strip().lower()
-
-        if not name or not client:
-            errors.append(RowValidationError(row_number=idx, field="name/client", error_message="Project name and client are required"))
-            continue
-
-        start_d = parse_date(start_str)
-        end_d = parse_date(end_str)
-        if not start_d or not end_d:
-            errors.append(RowValidationError(row_number=idx, field="dates", error_message="Invalid start or end date format"))
-            continue
-        if start_d > end_d:
-            errors.append(RowValidationError(row_number=idx, field="dates", error_message="Project start date cannot be after end date"))
-            continue
-
-        try:
-            revenue = float(rev_str)
-            if revenue < 0:
-                raise ValueError()
-        except ValueError:
-            errors.append(RowValidationError(row_number=idx, field="revenue", value=rev_str, error_message="Revenue must be a non-negative number"))
-            continue
-
-        try:
-            priority = int(priority_str)
-            if priority < 1 or priority > 5:
-                raise ValueError()
-        except ValueError:
-            errors.append(RowValidationError(row_number=idx, field="priority", value=priority_str, error_message="Priority must be between 1 and 5"))
-            continue
-
-        mandatory = mand_str in ("true", "1", "yes", "t")
-
-        existing = db.query(Project).filter(Project.org_id == org_id, Project.name == name).first()
-        if not existing:
-            proj = Project(
-                org_id=org_id,
-                name=name,
-                client=client,
-                start_date=start_d,
-                end_date=end_d,
-                revenue=revenue,
-                priority=priority,
-                mandatory=mandatory,
-            )
-            db.add(proj)
-        else:
-            existing.client = client
-            existing.start_date = start_d
-            existing.end_date = end_d
-            existing.revenue = revenue
-            existing.priority = priority
-            existing.mandatory = mandatory
-
-        imported += 1
-
-    db.commit()
-    return CSVImportResult(
-        entity_type="projects",
-        total_rows=total,
-        imported_rows=imported,
-        failed_rows=len(errors),
-        errors=errors,
-        message=f"Successfully imported {imported} of {total} projects",
+        imported_ids=imported_ids,
     )

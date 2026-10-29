@@ -1,9 +1,11 @@
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from sqlalchemy.orm import Session
-from app.models import AuditLog
+
+from app.models.audit import AuditLog
 
 
-def log_audit_event(
+def log_audit(
     db: Session,
     org_id: str,
     action: str,
@@ -14,17 +16,17 @@ def log_audit_event(
     after_state: Optional[Dict[str, Any]] = None,
     ip_address: Optional[str] = None,
 ) -> AuditLog:
-    """Creates an immutable audit log record for a state change."""
-    log_entry = AuditLog(
+    """Create an immutable audit log entry."""
+    entry = AuditLog(
         org_id=org_id,
         user_id=user_id,
         action=action,
         entity_type=entity_type,
-        entity_id=str(entity_id),
+        entity_id=entity_id,
         before_state=before_state,
         after_state=after_state,
         ip_address=ip_address,
     )
-    db.add(log_entry)
+    db.add(entry)
     db.flush()
-    return log_entry
+    return entry

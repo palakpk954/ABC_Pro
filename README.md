@@ -129,7 +129,7 @@ pip install -r requirements.txt
 alembic upgrade head
 python -m app.scripts.seed
 
-# 4. Run tests (28 tests passing)
+# 4. Run tests (21 tests passing)
 pytest -v
 
 # 5. Start API server
@@ -156,7 +156,7 @@ npm run dev
 ## 🧪 Testing
 
 ```bash
-# Backend unit & integration test suite (28 tests)
+# Backend unit & integration test suite (21 tests passing)
 cd apps/api
 pytest -v
 
