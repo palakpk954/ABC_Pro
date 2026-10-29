@@ -207,7 +207,7 @@ export default function ProjectsPage() {
 
                       {/* Required Skills */}
                       <div className="flex flex-wrap gap-1.5 border-t border-slate-200 dark:border-white/5 pt-2">
-                        {r.skill_requirements.map((sr) => (
+                        {(r.skill_requirements || r.skills || []).map((sr: any) => (
                           <span
                             key={sr.id}
                             className="rounded bg-white dark:bg-slate-700/60 px-2 py-0.5 text-[11px] text-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-600/50 shadow-xs"

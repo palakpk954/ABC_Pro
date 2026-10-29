@@ -125,13 +125,13 @@ export default function ScenariosPage() {
                 <span
                   className={cn(
                     "text-2xl font-bold font-mono",
-                    diff.profit_delta >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                    (diff.profit_delta ?? diff.profit_diff ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                   )}
                 >
-                  {diff.profit_delta >= 0 ? "+" : ""}
-                  {formatCurrency(diff.profit_delta)}
+                  {(diff.profit_delta ?? diff.profit_diff ?? 0) >= 0 ? "+" : ""}
+                  {formatCurrency(diff.profit_delta ?? diff.profit_diff ?? 0)}
                 </span>
-                {diff.profit_delta < 0 ? (
+                {(diff.profit_delta ?? diff.profit_diff ?? 0) < 0 ? (
                   <span className="flex items-center text-xs font-semibold text-rose-600 dark:text-rose-400">
                     <TrendingDown className="h-3 w-3" /> Margin Drop
                   </span>
@@ -143,7 +143,7 @@ export default function ScenariosPage() {
               </div>
               <p className="text-[11px] text-muted-foreground mt-1">
                 Base: {formatCurrency(MOCK_PLAN.profit_score || 412500)} &rarr; Scenario:{" "}
-                {formatCurrency((MOCK_PLAN.profit_score || 412500) + diff.profit_delta)}
+                {formatCurrency((MOCK_PLAN.profit_score || 412500) + (diff.profit_delta ?? diff.profit_diff ?? 0))}
               </p>
             </div>
 
@@ -154,11 +154,11 @@ export default function ScenariosPage() {
                 <span
                   className={cn(
                     "text-2xl font-bold font-mono",
-                    diff.growth_delta >= 0 ? "text-purple-600 dark:text-purple-400" : "text-rose-600 dark:text-rose-400"
+                    (diff.growth_delta ?? diff.growth_diff ?? 0) >= 0 ? "text-purple-600 dark:text-purple-400" : "text-rose-600 dark:text-rose-400"
                   )}
                 >
-                  {diff.growth_delta >= 0 ? "+" : ""}
-                  {(diff.growth_delta / 1000).toFixed(1)}k pts
+                  {(diff.growth_delta ?? diff.growth_diff ?? 0) >= 0 ? "+" : ""}
+                  {(((diff.growth_delta ?? diff.growth_diff ?? 0)) / 1000).toFixed(1)}k pts
                 </span>
                 <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 flex items-center">
                   <Sparkles className="h-3 w-3" /> Skill Value
@@ -179,7 +179,7 @@ export default function ScenariosPage() {
                 <span className="text-xs text-muted-foreground">Assignments Shifted</span>
               </div>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Across {diff.affected_employees.length} impacted engineers
+                Across {diff.affected_employees?.length || 0} impacted engineers
               </p>
             </div>
 
@@ -207,7 +207,7 @@ export default function ScenariosPage() {
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Impacted Engineers & Staffing Changes</h3>
             </div>
             <div className="space-y-3">
-              {diff.affected_employees.map((empName, i) => (
+              {(diff.affected_employees || []).map((empName: any, i: number) => (
                 <div
                   key={i}
                   className="flex items-center justify-between rounded-xl bg-slate-50 dark:bg-slate-800/40 p-3 border border-slate-200 dark:border-white/5 text-xs"
@@ -252,7 +252,7 @@ export default function ScenariosPage() {
                   Impacted Project Engagements
                 </span>
                 <div className="mt-2 space-y-2">
-                  {diff.affected_projects.map((proj, idx) => (
+                  {(diff.affected_projects || []).map((proj: any, idx: number) => (
                     <div key={idx} className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-medium">
                       <div className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
                       <span>{proj}</span>

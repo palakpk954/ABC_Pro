@@ -38,6 +38,8 @@ class Employee(TenantModel):
     leaves = relationship("EmployeeLeave", back_populates="employee", cascade="all, delete-orphan")
     assignments = relationship("Assignment", back_populates="employee", foreign_keys="Assignment.employee_id", cascade="all, delete-orphan")
     mentored_assignments = relationship("Assignment", back_populates="mentor", foreign_keys="Assignment.mentor_id")
+    dossier = relationship("EmployeeDossier", back_populates="employee", uselist=False, cascade="all, delete-orphan")
+    dossier_documents = relationship("DossierDocument", back_populates="employee", cascade="all, delete-orphan")
 
 
 class EmployeeLeave(TenantModel):

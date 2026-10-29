@@ -23,10 +23,10 @@ interface AssignmentModalProps {
 export function AssignmentModal({ assignment, onClose, onToggleLock }: AssignmentModalProps) {
   if (!assignment) return null;
 
-  const reasons = assignment.reasons;
-  const skillMatch = reasons?.skill_match;
-  const growth = reasons?.growth;
-  const cost = reasons?.cost;
+  const reasons: any = assignment.reasons;
+  const skillMatch: any = reasons?.skill_match;
+  const growth: any = reasons?.growth || reasons?.growth_alignment;
+  const cost: any = reasons?.cost || reasons?.margin_contribution;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-sm animate-fadeIn">
@@ -69,7 +69,7 @@ export function AssignmentModal({ assignment, onClose, onToggleLock }: Assignmen
             </div>
             {skillMatch?.skills && (
               <div className="flex flex-wrap gap-1.5 mt-2">
-                {skillMatch.skills.map((s, idx) => (
+                {skillMatch.skills.map((s: any, idx: number) => (
                   <span
                     key={idx}
                     className="rounded bg-white dark:bg-slate-700/60 px-2 py-0.5 text-[11px] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600/50 shadow-xs"

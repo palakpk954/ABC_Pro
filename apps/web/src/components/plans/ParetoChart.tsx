@@ -28,7 +28,7 @@ export function ParetoChart({ points, currentSliderValue }: ParetoChartProps) {
   const data = points.map((p) => ({
     ...p,
     profitDisplay: p.profit / 1000,
-    growthDisplay: p.growth_score / 1000,
+    growthDisplay: (p.growth_score ?? p.growth ?? 0) / 1000,
     isCurrent: Math.abs(p.slider_value - currentSliderValue) < 0.15,
   }));
 
@@ -42,7 +42,7 @@ export function ParetoChart({ points, currentSliderValue }: ParetoChartProps) {
               Tradeoff Weight: {Math.round(data.slider_value * 100)}% Growth
             </span>
             <span className="rounded bg-emerald-50 dark:bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-300">
-              {data.status}
+              {data.status || "Optimal"}
             </span>
           </div>
           <div className="space-y-1">
@@ -52,7 +52,7 @@ export function ParetoChart({ points, currentSliderValue }: ParetoChartProps) {
             </p>
             <p className="flex justify-between gap-4 text-slate-700 dark:text-slate-300">
               <span className="text-muted-foreground">Team Growth Score:</span>
-              <span className="font-mono font-semibold text-purple-600 dark:text-purple-400">{(data.growth_score / 1000).toFixed(1)}k pts</span>
+              <span className="font-mono font-semibold text-purple-600 dark:text-purple-400">{(((data.growth_score ?? data.growth ?? 0) / 1000).toFixed(1))}k pts</span>
             </p>
             <p className="flex justify-between gap-4 text-slate-700 dark:text-slate-300">
               <span className="text-muted-foreground">Selected Projects:</span>

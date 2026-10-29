@@ -34,7 +34,7 @@ export function UtilizationHeatmap({
 
   assignments.forEach((asgn) => {
     if (matrix[asgn.employee_id] && matrix[asgn.employee_id][asgn.week_number]) {
-      matrix[asgn.employee_id][asgn.week_number].hours += asgn.hours;
+      matrix[asgn.employee_id][asgn.week_number].hours += (asgn.hours || asgn.allocated_hours || 0);
       matrix[asgn.employee_id][asgn.week_number].assignments.push(asgn);
     }
   });
