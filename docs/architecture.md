@@ -12,6 +12,7 @@ graph TB
         UI_Slider["Tradeoff Slider & Pareto Curve"]
         UI_Scenario["Scenario What-If & Diff Panel"]
         UI_Data["Data Tables (Employees, Skills, Projects)"]
+        UI_Theme["Theme System (Light & Dark Mode)"]
     end
 
     subgraph API ["FastAPI Backend (apps/api)"]
@@ -74,3 +75,6 @@ graph TB
 
 5. **Explainability without Hallucination**:
    Explanations for why an employee was staffed (skill match, growth target alignment, mentor pairing) and why a project was dropped (capacity bottleneck, skill deficit, lower marginal contribution) are computed directly from mathematical solver data and counterfactual re-solves, avoiding black-box LLM hallucinations.
+
+6. **Dual-Theme Design System**:
+   The frontend is built with Next.js 14 (App Router) and Tailwind CSS, featuring full light mode and dark mode support with localStorage persistence, fluid micro-animations, Recharts Pareto frontier visualizer, and responsive desktop-first layout ($1280\text{px}+$ viewport).

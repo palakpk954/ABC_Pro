@@ -13,7 +13,7 @@ Allocate helps IT services, consulting, and digital agency leaders answer three 
 
 Allocate is structured as a modular monolith in a monorepo:
 - `apps/api`: Python 3.12 FastAPI backend + SQLAlchemy 2.0 + Google OR-Tools CP-SAT engine.
-- `apps/web`: Next.js 14 (App Router) + TypeScript + Tailwind + TanStack Query + Recharts.
+- `apps/web`: Next.js 14 (App Router) + TypeScript + Tailwind CSS (Light & Dark Theme) + TanStack Query + Recharts.
 - `docs`: Architecture specification, database schema, and mathematical formulation.
 
 ```mermaid
@@ -23,6 +23,7 @@ graph TB
         PlanTimeline["Plan Timeline & Gantt View"]
         SliderControl["Profit vs Growth Slider"]
         ScenarioDiff["Scenario What-If Diff"]
+        ThemeToggle["Theme Switcher (Light & Dark)"]
     end
 
     subgraph API ["Backend API (FastAPI)"]
@@ -59,31 +60,37 @@ graph TB
 
 ---
 
-## 🧠 The Optimization Model in Plain English
+## 🌟 Key Product Features
 
-Rather than relying on ungrounded generative LLM guesses, Allocate uses a deterministic mathematical constraint solver (**Google OR-Tools CP-SAT**).
+### 1. Dashboard & Utilization Heatmap (`/`)
+- **Key Metrics (FR-22):** Real-time cards for Net Portfolio Profit, Team Growth Score, Billable Utilization Rate, and Project Acceptance Rate.
+- **12-Week Team Utilization Heatmap:** Weekly hours vs. 40h standard capacity with color-coded bench (gray), optimal 40h (green), and overtime (amber) indicators. Click any cell to view detailed project allocations and mentoring ties.
+- **Explainability Panel (FR-20):** Displays accepted projects alongside dropped projects accompanied by **plain-language counterfactual solver explanations**.
 
-### 1. Hard Constraints (Must NEVER be violated)
-- **Zero hours on leave:** Employees on PTO or sick leave are strictly allocated 0 hours.
-- **Weekly capacity & overtime limits:** Total weekly hours cannot exceed 40 standard hours plus employee-specific max overtime (e.g. 10 hours).
-- **All-or-nothing project staffing:** If a project is selected, every role must be 100% staffed across all weeks. Unselected projects receive 0 hours.
-- **Mandatory projects:** Selected without exception. If impossible, the pre-solve feasibility diagnostic explains exactly why.
-- **No fragmented scraps:** Assignments must meet a minimum block size (e.g. 10 hours/week) and cap concurrent projects at 2 per employee.
-- **Mentorship for stretch roles:** An employee one level below required proficiency may take a stretch role **only** if a qualified mentor is staffed on the same project. The mentor’s capacity is reduced by 10% of the mentee’s hours.
+### 2. Staffing Plans & Tradeoff Tuning (`/plans`)
+- **Profit vs. Growth Slider (FR-3, FR-25):** Single 0 to 1 control balancing short-term margin against employee development and stretch opportunities.
+- **Pareto Tradeoff Frontier (FR-10, FR-25):** Interactive **Recharts** chart plotting optimal points across weight settings.
+- **Interactive Timeline / Gantt Grid (FR-24):** 12-week grid switchable by Engineer or by Project with indicators for stretch assignments (`✨`), mentors (`🤝`), and locked assignments (`🔒`).
+- **Structured Explainability Modal (FR-19):** Deep-dive dialog explaining competency matches, mentor hours deduction (HC-6), growth score contributions, and fixed-lock toggling.
 
-### 2. Tunable Multi-Objective Optimization
-Managers use a single **Profit vs. Growth** slider in the UI ($0 \le \lambda \le 1$):
-- **Profit Objective:** Maximizes project revenue minus labor costs and overtime penalties.
-- **Growth Objective:** Rewards closing skill gaps matching employee career aspirations, stretch opportunities, and mentorship.
-- **Workload Balance:** Penalizes uneven utilization across the team and avoids burnout (utilization $>90\%$).
+### 3. What-If Scenarios & Diff Analysis (`/scenarios`)
+- **Side-by-Side Diff (FR-15, FR-26):** Evaluates counterfactuals (employee absences, added deals, weight shifts) against the baseline plan, calculating profit deltas, growth deltas, and staffing perturbations.
 
-All plans are strictly advisory: a human manager reviews, overrides if necessary, and approves.
+### 4. Data Management & Skills Matrix (`/employees`, `/projects`, `/skills`)
+- **Employee Roster (FR-1):** Hourly rates, standard/overtime capacities, career goals, and skills.
+- **Projects & Role Demands (FR-3, FR-4):** Client contracts, revenue, mandatory constraints (HC-3), and skill requirement levels.
+- **Interactive Skills Matrix (FR-2, FR-23):** Employees $\times$ Skills grid with category filters and inline editors for proficiency (1–5) and aspirational growth targets (1–5).
+- **CSV Ingestion (FR-6):** Bulk upload modal with row-level validation.
+
+### 5. Dual-Theme Design (Light & Dark)
+- Full light theme with clean off-white backgrounds, crisp typography, and soft shadows.
+- One-click **Sun/Moon theme toggle** in the navigation bar with `localStorage` persistence.
 
 ---
 
 ## 🚀 Quick Start Guide
 
-### Option 1: Docker Compose (Recommended for Production / Containers)
+### Option 1: Docker Compose (Full Stack)
 ```bash
 # 1. Clone repository and copy environment configuration
 cp .env.example .env
@@ -102,25 +109,46 @@ docker compose exec api python -m app.scripts.seed
 # Backend:   http://localhost:8000/docs
 ```
 
-### Option 2: Local Development (Host Python & SQLite/Postgres)
+### Option 2: Running Locally
+
+#### Backend (FastAPI + OR-Tools)
 ```bash
-# 1. Set up backend virtual environment
 cd apps/api
+
+# 1. Set up virtual environment
 python -m venv .venv
-# Windows: .venv\Scripts\activate | Unix: source .venv/bin/activate
+# Windows:
+.venv\Scripts\activate
+# Unix/macOS:
+source .venv/bin/activate
+
+# 2. Install dependencies
 pip install -r requirements.txt
 
-# 2. Run database migrations
+# 3. Run database migrations and seed data
 alembic upgrade head
-
-# 3. Seed realistic demo dataset
 python -m app.scripts.seed
 
-# 4. Run test suite
+# 4. Run tests (28 tests passing)
 pytest -v
 
 # 5. Start API server
 uvicorn app.main:app --reload --port 8000
+```
+
+#### Frontend (Next.js 14)
+```bash
+cd apps/web
+
+# 1. Install dependencies
+npm install --legacy-peer-deps
+
+# 2. Verify production build
+npm run build
+
+# 3. Start development server
+npm run dev
+# Access at http://localhost:3000 (or http://localhost:3001)
 ```
 
 ---
@@ -128,15 +156,19 @@ uvicorn app.main:app --reload --port 8000
 ## 🧪 Testing
 
 ```bash
-# Run backend tests (models, tenancy, seed integrity)
+# Backend unit & integration test suite (28 tests)
 cd apps/api
 pytest -v
+
+# Frontend type-check and static build verification
+cd apps/web
+npm run build
 ```
 
 ---
 
 ## 📚 Documentation Links
-- [Database Schema Specification](file:///c:/Users/HP/Desktop/ABC_Pro/docs/schema.md)
-- [System Architecture](file:///c:/Users/HP/Desktop/ABC_Pro/docs/architecture.md)
-- [Full Mathematical Formulation](file:///c:/Users/HP/Desktop/ABC_Pro/docs/model.md)
-- [Product Requirements Document](file:///c:/Users/HP/Desktop/ABC_Pro/PRD%20Allocate%20%E2%80%93%20AI-Assisted%20Resource%20Allocation%20Platform.md)
+- [Database Schema Specification](docs/schema.md)
+- [System Architecture](docs/architecture.md)
+- [Full Mathematical Formulation](docs/model.md)
+- [Product Requirements Document (PRD)](PRD%20Allocate%20%E2%80%93%20AI-Assisted%20Resource%20Allocation%20Platform.md)
