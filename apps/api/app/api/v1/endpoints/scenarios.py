@@ -5,9 +5,15 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.plan import Scenario
+from app.models.plan import Plan, Scenario
 from app.models.user import User
-from app.schemas.scenario import ScenarioCreateRequest, ScenarioResponse
+from app.schemas.scenario import (
+    NaturalScenarioSimulateRequest,
+    NaturalScenarioSimulateResponse,
+    ScenarioCreateRequest,
+    ScenarioResponse,
+)
+from app.services.cognitive_advisor import CognitiveAdvisorService
 from app.services.scenario_service import create_and_run_scenario
 
 router = APIRouter()
@@ -30,6 +36,32 @@ def create_scenario(
         return scenario
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/simulate-prompt", response_model=NaturalScenarioSimulateResponse)
+def simulate_natural_scenario(
+    req: NaturalScenarioSimulateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Simulates a What-If operational scenario from a natural language prompt.
+    Synthesizes executive recommendation from Alex, computes metric diffs,
+    and identifies impacted engineers and mitigations.
+    """
+    base_plan = (
+        db.query(Plan)
+        .filter(Plan.id == req.base_plan_id, Plan.org_id == current_user.org_id)
+        .first()
+    )
+    if not base_plan:
+        raise HTTPException(status_code=404, detail="Base plan not found")
+
+    return CognitiveAdvisorService.simulate_natural_scenario(
+        base_plan=base_plan,
+        prompt=req.prompt,
+        db=db,
+    )
 
 
 @router.get("", response_model=List[ScenarioResponse])

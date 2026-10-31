@@ -352,3 +352,90 @@ export async function chatWithAdvisor(
   });
 }
 
+
+
+export interface ImpactedEngineerChange {
+  employee_id: string;
+  employee_name: string;
+  role_title: string;
+  project_name: string;
+  previous_hours: number;
+  new_hours: number;
+  delta_hours: number;
+  change_type: "reallocated" | "reduced" | "backfilled" | "added" | string;
+  rationale: string;
+}
+
+export interface NaturalScenarioSimulateResponse {
+  scenario_name: string;
+  detected_perturbation: string;
+  executive_recommendation: string;
+  recommendation_verdict: "Approved" | "Caution" | "Rejected" | string;
+  profit_delta: number;
+  growth_score_delta: number;
+  labor_cost_delta: number;
+  overtime_cost_delta: number;
+  feasibility_status: string;
+  assignments_shifted_count: number;
+  impacted_engineers: ImpactedEngineerChange[];
+  suggested_mitigations: string[];
+}
+
+export interface CandidateComparisonProfile {
+  id: string;
+  name: string;
+  role: string;
+  hourly_rate: number;
+  archetype: string;
+  archetype_fit_rating: "High" | "Moderate" | "Neutral" | string;
+  archetype_fit_score: number;
+  burnout_risk_score: number;
+  burnout_status: string;
+  coaching_sentiment: string;
+  stretch_readiness_score: number;
+  matching_skills: string[];
+  evidence_quote?: string;
+  weekly_margin_generated: number;
+}
+
+export interface CandidateMatchupResponse {
+  role_title: string;
+  project_name: string;
+  candidate_a: CandidateComparisonProfile;
+  candidate_b: CandidateComparisonProfile;
+  recommended_candidate_id: string;
+  verdict_headline: string;
+  executive_counterfactual_explanation: string;
+  tradeoff_summary: {
+    weekly_margin_diff: number;
+    burnout_risk_diff: number;
+    growth_points_winner: string;
+  };
+}
+
+/** Simulate a What-If operational perturbation from natural language */
+export async function simulateNaturalScenario(
+  basePlanId: string,
+  prompt: string
+): Promise<NaturalScenarioSimulateResponse> {
+  return fetchApi<NaturalScenarioSimulateResponse>("/scenarios/simulate-prompt", {
+    method: "POST",
+    body: JSON.stringify({ base_plan_id: basePlanId, prompt }),
+  });
+}
+
+/** Fetch counterfactual comparison between two candidate profiles */
+export async function getCandidateMatchup(
+  employeeIdA: string,
+  employeeIdB: string,
+  roleTitle: string,
+  projectId?: string
+): Promise<CandidateMatchupResponse> {
+  const query = new URLSearchParams({
+    employee_id_a: employeeIdA,
+    employee_id_b: employeeIdB,
+    role_title: roleTitle,
+  });
+  if (projectId) query.append("project_id", projectId);
+  return fetchApi<CandidateMatchupResponse>(`/employees/compare/matchup?${query.toString()}`);
+}

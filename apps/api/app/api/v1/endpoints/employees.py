@@ -16,6 +16,7 @@ from app.schemas.employee import (
     EmployeeSkillCreate,
     EmployeeSkillResponse,
     EmployeeUpdate,
+    CandidateMatchupResponse,
 )
 
 router = APIRouter()
@@ -284,3 +285,43 @@ def delete_employee_leave(
         raise HTTPException(status_code=404, detail="Leave record not found")
     db.delete(leave)
     db.commit()
+
+@router.get('/compare/matchup', response_model=CandidateMatchupResponse)
+def compare_candidates_matchup(
+    employee_id_a: str = Query(...),
+    employee_id_b: str = Query(...),
+    role_title: str = Query(default='Core Backend Engineer'),
+    project_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.project import Project
+    from app.services.cognitive_advisor import CognitiveAdvisorService
+
+    emp_a = (
+        db.query(Employee)
+        .options(joinedload(Employee.dossier), joinedload(Employee.skills).joinedload(EmployeeSkill.skill))
+        .filter(Employee.id == employee_id_a, Employee.org_id == current_user.org_id)
+        .first()
+    )
+    emp_b = (
+        db.query(Employee)
+        .options(joinedload(Employee.dossier), joinedload(Employee.skills).joinedload(EmployeeSkill.skill))
+        .filter(Employee.id == employee_id_b, Employee.org_id == current_user.org_id)
+        .first()
+    )
+    if not emp_a or not emp_b:
+        raise HTTPException(status_code=404, detail='One or both employees not found')
+
+    proj = None
+    if project_id:
+        proj = db.query(Project).filter(Project.id == project_id, Project.org_id == current_user.org_id).first()
+
+    return CognitiveAdvisorService.compare_candidates_matchup(
+        employee_a=emp_a,
+        employee_b=emp_b,
+        role_title=role_title,
+        project=proj,
+        db=db,
+    )
+

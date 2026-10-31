@@ -240,3 +240,4 @@ export function CognitiveAdvisorPanel({ advisory, onOpenChat }: CognitiveAdvisor
     </div>
   );
 }
+

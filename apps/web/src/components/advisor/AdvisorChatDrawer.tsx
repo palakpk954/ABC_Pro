@@ -378,3 +378,4 @@ function generateLocalFallback(query: string): PlanChatResponse {
     relevant_employee_ids: [],
   };
 }
+

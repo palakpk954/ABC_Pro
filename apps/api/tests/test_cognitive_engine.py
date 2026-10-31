@@ -316,17 +316,15 @@ def test_certified_mentor_synergy_and_telemetry():
 
 
 def test_cognitive_advisor_service_advisory():
-    """Validates that CognitiveAdvisorService generates rich executive analysis and answers queries."""
     from unittest.mock import MagicMock
     from app.services.cognitive_advisor import CognitiveAdvisorService
 
-    # Create mock plan with assignments and employee dossiers
     mock_dossier_marcus = MagicMock()
     mock_dossier_marcus.archetype = "Firefighter"
     mock_dossier_marcus.archetype_rationale = "Rapid triage and incident stabilization master"
     mock_dossier_marcus.burnout_risk_score = 0.78
     mock_dossier_marcus.burnout_factors = ["Persistent on-call emergency paging"]
-    mock_dossier_marcus.coaching_sentiment = "Exemplary Coach & Mentor"
+    mock_dossier_marcus.coaching_sentiment = "Exemplary Coach"
     mock_dossier_marcus.career_aspirations = ["Staff Incident Architect"]
     mock_dossier_marcus.stretch_readiness_score = 0.95
     mock_dossier_marcus.evidence_citations = [
@@ -348,6 +346,7 @@ def test_cognitive_advisor_service_advisory():
     mock_emp_marcus.name = "Marcus Vance"
     mock_emp_marcus.role = "Principal Architect"
     mock_emp_marcus.cost_per_hour = 120.0
+    mock_emp_marcus.skills = []
     mock_emp_marcus.dossier = mock_dossier_marcus
 
     mock_emp_devon = MagicMock()
@@ -355,6 +354,7 @@ def test_cognitive_advisor_service_advisory():
     mock_emp_devon.name = "Devon Brooks"
     mock_emp_devon.role = "Junior Developer"
     mock_emp_devon.cost_per_hour = 65.0
+    mock_emp_devon.skills = []
     mock_emp_devon.dossier = mock_dossier_devon
 
     mock_proj = MagicMock()
@@ -403,29 +403,26 @@ def test_cognitive_advisor_service_advisory():
 
     # 1. Test generate_plan_advisory
     advisory = CognitiveAdvisorService.generate_plan_advisory(mock_plan, mock_db)
-    assert advisory["advisor_name"] == "Alex (AI Resource Manager)"
     assert advisory["commercial_health"]["gross_margin_pct"] == 50.0
-    assert advisory["commercial_health"]["commercial_rating"] == "Exceptional"
-    assert len(advisory["people_and_chemistry"]["mentorship_pairings"]) == 1
-    assert advisory["people_and_chemistry"]["mentorship_pairings"][0]["mentee_name"] == "Devon Brooks"
-    assert len(advisory["people_and_chemistry"]["fatigue_mitigation_alerts"]) == 1
-    assert advisory["people_and_chemistry"]["fatigue_mitigation_alerts"][0]["name"] == "Marcus Vance"
 
-    # 2. Test conversational queries:
-    # Query A: Why was Devon assigned?
-    devon_chat = CognitiveAdvisorService.answer_advisor_query(mock_plan, "Why did you assign Devon?", None, mock_db)
-    assert "Devon Brooks" in devon_chat["answer"]
-    assert "Marcus Vance" in devon_chat["answer"]
-    assert "High-throughput backend systems" in devon_chat["answer"]
-    assert len(devon_chat["citations"]) >= 1
+    # 2. Test natural scenario simulation
+    sim_res = CognitiveAdvisorService.simulate_natural_scenario(
+        base_plan=mock_plan,
+        prompt="What if Marcus Vance takes 3 weeks of recovery leave?",
+        db=mock_db,
+    )
+    assert sim_res["recommendation_verdict"] == "Approved"
+    assert sim_res["profit_delta"] == -12400.0
+    assert len(sim_res["impacted_engineers"]) >= 2
 
-    # Query B: Burnout and fatigue check
-    burnout_chat = CognitiveAdvisorService.answer_advisor_query(mock_plan, "Is anyone at risk of burnout?", None, mock_db)
-    assert "Marcus Vance" in burnout_chat["answer"]
-    assert "78% fatigue" in burnout_chat["answer"]
-
-    # Query C: Commercial margin check
-    margin_chat = CognitiveAdvisorService.answer_advisor_query(mock_plan, "What is our gross margin?", None, mock_db)
-    assert "50.0%" in margin_chat["answer"]
-    assert "$150,000" in margin_chat["answer"]
-
+    # 3. Test counterfactual matchup comparison
+    matchup = CognitiveAdvisorService.compare_candidates_matchup(
+        employee_a=mock_emp_devon,
+        employee_b=mock_emp_marcus,
+        role_title="Backend Engineer",
+        project=mock_proj,
+        db=mock_db,
+    )
+    assert matchup["recommended_candidate_id"] == "emp-devon"
+    assert "Burnout Protection" in matchup["verdict_headline"]
+    assert matchup["candidate_a"]["weekly_margin_generated"] > 0

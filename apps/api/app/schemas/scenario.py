@@ -46,3 +46,36 @@ class ScenarioResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ImpactedEngineerChange(BaseModel):
+    employee_id: str
+    employee_name: str
+    role_title: str
+    project_name: str
+    previous_hours: int
+    new_hours: int
+    delta_hours: int
+    change_type: str  # reallocated, reduced, backfilled, added
+    rationale: str
+
+
+class NaturalScenarioSimulateRequest(BaseModel):
+    base_plan_id: str
+    prompt: str
+
+
+class NaturalScenarioSimulateResponse(BaseModel):
+    scenario_name: str
+    detected_perturbation: str
+    executive_recommendation: str
+    recommendation_verdict: str  # "Approved", "Caution", "Rejected"
+    profit_delta: float
+    growth_score_delta: float
+    labor_cost_delta: float
+    overtime_cost_delta: float
+    feasibility_status: str
+    assignments_shifted_count: int
+    impacted_engineers: List[ImpactedEngineerChange] = Field(default_factory=list)
+    suggested_mitigations: List[str] = Field(default_factory=list)
+

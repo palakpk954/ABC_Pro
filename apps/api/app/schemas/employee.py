@@ -87,3 +87,32 @@ class EmployeeResponse(EmployeeBase):
 
     class Config:
         from_attributes = True
+
+
+class CandidateComparisonProfile(BaseModel):
+    id: str
+    name: str
+    role: str
+    hourly_rate: float
+    archetype: str
+    archetype_fit_rating: str  # High, Moderate, Neutral
+    archetype_fit_score: int
+    burnout_risk_score: float
+    burnout_status: str
+    coaching_sentiment: str
+    stretch_readiness_score: float
+    matching_skills: List[str] = Field(default_factory=list)
+    evidence_quote: Optional[str] = None
+    weekly_margin_generated: float
+
+
+class CandidateMatchupResponse(BaseModel):
+    role_title: str
+    project_name: str
+    candidate_a: CandidateComparisonProfile
+    candidate_b: CandidateComparisonProfile
+    recommended_candidate_id: str
+    verdict_headline: str
+    executive_counterfactual_explanation: str
+    tradeoff_summary: Dict[str, Any]
+
