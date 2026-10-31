@@ -35,6 +35,11 @@ class EmployeeInput:
     skills: Dict[str, EmployeeSkillProficiency] = field(default_factory=dict)
     leave_weeks: Set[int] = field(default_factory=set)  # 1-indexed week numbers
     career_goals: List[str] = field(default_factory=list)  # Target skill names
+    archetype: str = "Generalist"  # Pathfinder, Optimizer, Firefighter, Mentor, Generalist
+    burnout_risk_score: float = 0.15  # 0.0 (rested) to 1.0 (exhausted)
+    coaching_sentiment: str = "Collaborative Contributor"
+    stretch_readiness_score: float = 0.75
+    career_aspirations: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -60,6 +65,7 @@ class ProjectInput:
     priority: int = 3  # 1 to 5
     mandatory: bool = False
     roles: List[ProjectRoleInput] = field(default_factory=list)
+    archetype_focus: Optional[str] = None  # Pathfinder, Optimizer, Firefighter, Mentor, Generalist
 
 
 @dataclass
@@ -118,6 +124,8 @@ class OptimizationProblem:
                     "ot": e.max_overtime_hours,
                     "leaves": sorted(list(e.leave_weeks)),
                     "skills": {s_id: (sp.proficiency, sp.growth_target) for s_id, sp in sorted(e.skills.items())},
+                    "archetype": getattr(e, "archetype", "Generalist"),
+                    "burnout": getattr(e, "burnout_risk_score", 0.15),
                 }
                 for e in sorted(self.employees, key=lambda x: x.id)
             ],
@@ -192,6 +200,8 @@ class ObjectiveBreakdown:
     balance_penalty: float
     utilization_variance: float
     overutilization_penalty: float
+    archetype_synergy_score: float = 0.0
+    burnout_fatigue_penalty: float = 0.0
 
 
 @dataclass

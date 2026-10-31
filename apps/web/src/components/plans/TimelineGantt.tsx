@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Plan, Assignment, Employee, Project } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Lock, Award, HeartHandshake, Users, Briefcase } from "lucide-react";
+import { Lock, Award, HeartHandshake, Users, Briefcase, Compass, Zap } from "lucide-react";
 
 interface TimelineGanttProps {
   plan: Plan;
@@ -95,8 +95,8 @@ export function TimelineGantt({
         <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="border-b border-slate-200 dark:border-white/5 text-[11px] text-slate-600 dark:text-muted-foreground font-mono">
-              <th className="py-2.5 px-3 min-w-[200px] font-medium">
-                {viewMode === "employee" ? "Engineer & Role" : "Project & Client"}
+              <th className="py-2.5 px-3 min-w-[220px] font-medium">
+                {viewMode === "employee" ? "Engineer & Chemistry" : "Project & Client"}
               </th>
               {Array.from({ length: horizonWeeks }, (_, i) => (
                 <th key={i + 1} className="py-2.5 px-1.5 text-center min-w-[70px] font-medium">
@@ -109,11 +109,31 @@ export function TimelineGantt({
             {viewMode === "employee"
               ? employees.map((emp) => {
                   const weeks = employeeMap[emp.id] || {};
+                  const dossier = emp.dossier;
+                  const burnoutScore = dossier?.burnout_risk_score ?? 0.15;
+                  const isHighBurnout = burnoutScore >= 0.50;
+
                   return (
                     <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
                       <td className="py-3 px-3 align-middle">
-                        <div className="font-semibold text-slate-900 dark:text-slate-200">{emp.name}</div>
-                        <div className="text-[10px] text-muted-foreground truncate max-w-[190px]">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-slate-900 dark:text-slate-200">{emp.name}</span>
+                          {dossier?.archetype && (
+                            <span className="rounded bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.2 text-[9px] font-medium text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-500/20">
+                              {dossier.archetype}
+                            </span>
+                          )}
+                          {isHighBurnout && (
+                            <span
+                              className="rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 px-1.5 py-0.2 text-[9px] font-bold flex items-center gap-0.5"
+                              title={`Burnout Watch: ${Math.round(burnoutScore * 100)}% stress`}
+                            >
+                              <Zap className="h-2.5 w-2.5 text-amber-500" />
+                              {Math.round(burnoutScore * 100)}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground truncate max-w-[210px] mt-0.5">
                           {emp.role} &bull; ${emp.cost_per_hour}/h
                         </div>
                       </td>
@@ -129,38 +149,46 @@ export function TimelineGantt({
                               </div>
                             ) : (
                               <div className="space-y-1">
-                                {cellAssignments.map((asgn) => (
-                                  <button
-                                    key={asgn.id}
-                                    onClick={() => onSelectAssignment(asgn)}
-                                    className={cn(
-                                      "w-full rounded-lg p-1.5 text-left transition-all hover:scale-[1.02] border shadow-sm",
-                                      asgn.is_stretch
-                                        ? "bg-purple-50 text-purple-900 border-purple-200 dark:bg-purple-950/40 dark:border-purple-500/40 dark:text-purple-200"
-                                        : "bg-indigo-50 text-indigo-900 border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-500/30 dark:text-indigo-200"
-                                    )}
-                                  >
-                                    <div className="flex items-center justify-between text-[10px]">
-                                      <span className="font-bold truncate max-w-[45px]">
-                                        {asgn.hours}h
-                                      </span>
-                                      <div className="flex items-center gap-1">
-                                        {asgn.is_locked && (
-                                          <Lock className="h-2.5 w-2.5 text-amber-500 dark:text-amber-400" />
-                                        )}
-                                        {asgn.is_stretch && (
-                                          <Award className="h-2.5 w-2.5 text-purple-600 dark:text-purple-400" />
-                                        )}
-                                        {asgn.mentor_name && (
-                                          <HeartHandshake className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
-                                        )}
+                                {cellAssignments.map((asgn) => {
+                                  const reasons: any = asgn.reasons;
+                                  const hasArchetypeFit = Boolean(reasons?.archetype_fit);
+
+                                  return (
+                                    <button
+                                      key={asgn.id}
+                                      onClick={() => onSelectAssignment(asgn)}
+                                      className={cn(
+                                        "w-full rounded-lg p-1.5 text-left transition-all hover:scale-[1.02] border shadow-sm",
+                                        asgn.is_stretch
+                                          ? "bg-purple-50 text-purple-900 border-purple-200 dark:bg-purple-950/40 dark:border-purple-500/40 dark:text-purple-200"
+                                          : "bg-indigo-50 text-indigo-900 border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-500/30 dark:text-indigo-200"
+                                      )}
+                                    >
+                                      <div className="flex items-center justify-between text-[10px]">
+                                        <span className="font-bold truncate max-w-[45px]">
+                                          {asgn.allocated_hours || asgn.hours || 40}h
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                          {asgn.is_locked && (
+                                            <Lock className="h-2.5 w-2.5 text-amber-500 dark:text-amber-400" />
+                                          )}
+                                          {hasArchetypeFit && (
+                                            <Compass className="h-2.5 w-2.5 text-blue-600 dark:text-blue-400" />
+                                          )}
+                                          {asgn.is_stretch && (
+                                            <Award className="h-2.5 w-2.5 text-purple-600 dark:text-purple-400" />
+                                          )}
+                                          {asgn.mentor_name && (
+                                            <HeartHandshake className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-400" />
+                                          )}
+                                        </div>
                                       </div>
-                                    </div>
-                                    <p className="text-[9px] font-medium text-slate-700 dark:text-slate-300 truncate mt-0.5">
-                                      {asgn.project_name?.split(" ")[0]}
-                                    </p>
-                                  </button>
-                                ))}
+                                      <p className="text-[9px] font-medium text-slate-700 dark:text-slate-300 truncate mt-0.5">
+                                        {asgn.project_name?.split(" ")[0]}
+                                      </p>
+                                    </button>
+                                  );
+                                })}
                               </div>
                             )}
                           </td>
@@ -176,7 +204,7 @@ export function TimelineGantt({
                       <td className="py-3 px-3 align-middle">
                         <div className="font-semibold text-slate-900 dark:text-slate-200">{proj.name}</div>
                         <div className="text-[10px] text-muted-foreground">
-                          {proj.client} &bull; Priority {proj.priority}
+                          {proj.client || proj.client_name} &bull; Priority {proj.priority}
                         </div>
                       </td>
                       {Array.from({ length: horizonWeeks }, (_, i) => {
@@ -201,10 +229,12 @@ export function TimelineGantt({
                                       <span className="font-semibold truncate max-w-[45px]">
                                         {asgn.employee_name?.split(" ")[0]}
                                       </span>
-                                      <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{asgn.hours}h</span>
+                                      <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                        {asgn.allocated_hours || asgn.hours || 40}h
+                                      </span>
                                     </div>
                                     <p className="text-[9px] text-muted-foreground truncate">
-                                      {asgn.role_title}
+                                      {asgn.role_title || asgn.role_name}
                                     </p>
                                   </button>
                                 ))}

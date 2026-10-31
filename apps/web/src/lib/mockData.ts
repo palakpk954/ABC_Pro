@@ -2,7 +2,7 @@
  * Realistic seed and mock data for Allocate platform & Living Talent Dossiers.
  */
 
-import { Employee, Project, Skill, Plan, Scenario, ParetoPoint } from "./api";
+import { Employee, Project, Skill, Plan, Scenario, ParetoPoint, CognitiveAdvisory } from "./api";
 
 export const MOCK_SKILLS: Skill[] = [
   { id: "sk-1", name: "React", category: "Frontend", description: "Modern React with hooks and state management" },
@@ -465,3 +465,76 @@ export const MOCK_PARETO: ParetoPoint[] = [
   { slider_value: 0.65, profit: 412500, growth: 148000, label: "Strategic Growth (0.65)" },
   { slider_value: 1.0, profit: 375000, growth: 185000, label: "Max Growth & Retention (1.0)" },
 ];
+
+export const MOCK_ADVISORY: CognitiveAdvisory = {
+  plan_id: "plan-mock-1",
+  plan_name: "Q4 High-Margin Strategic Staffing",
+  advisor_name: "Alex (AI Resource Manager)",
+  executive_summary: "Here is my assessment of 'Q4 High-Margin Strategic Staffing': This allocation delivers a robust 58.5% gross margin ($412,500 net profit) across active squads. It strategically pairs 1 rising engineer (Devon Brooks) with certified principal architect Sarah Chen, while enforcing fatigue guardrails across high-utilization engineers (Marcus Vance) to curb turnover. Squad structure is anchored predominantly by 'Pathfinder' and 'Optimizer' profiles, ensuring high delivery cadence.",
+  commercial_health: {
+    net_profit: 412500,
+    gross_revenue: 705000,
+    gross_margin_pct: 58.5,
+    labor_cost: 268000,
+    overtime_cost: 14500,
+    commercial_rating: "Exceptional",
+  },
+  people_and_chemistry: {
+    active_staff_count: 4,
+    mentorship_pairings: [
+      {
+        mentee_id: "emp-4",
+        mentee_name: "Devon Brooks",
+        mentor_id: "emp-1",
+        mentor_name: "Sarah Chen",
+        coaching_sentiment: "Exemplary Coach & Mentor (High Multiplier)",
+        project_name: "Fintech Real-Time Ledger",
+        role_title: "Core Data & Backend Engineer",
+      },
+    ],
+    stretch_assignments: [
+      {
+        employee_name: "Devon Brooks",
+        role_title: "Core Data & Backend Engineer",
+        target_skills: ["Python", "Distributed Systems"],
+        mentor_name: "Sarah Chen",
+      },
+    ],
+    archetype_distribution: {
+      Pathfinder: 1,
+      Optimizer: 1,
+      Firefighter: 1,
+      Mentor: 1,
+    },
+    fatigue_mitigation_alerts: [
+      {
+        name: "Marcus Vance",
+        fatigue_pct: 78,
+        max_week_hours: 40,
+        status: "Protected",
+        recommendation: "Workload successfully throttled to 40h/w without overtime spikes to prevent emergency response churn.",
+      },
+    ],
+  },
+  strategic_recommendations: [
+    {
+      category: "Mentorship & Chemistry",
+      severity: "Positive",
+      title: "Paired Acceleration: Devon Brooks & Sarah Chen",
+      detail: "Devon is stretching into high-throughput backend modules on Fintech Ledger. Sarah Chen has reserved 10% capacity for weekly PR reviews and architecture guidance.",
+    },
+    {
+      category: "Burnout Protection",
+      severity: "Warning",
+      title: "Fatigue Watch: Marcus Vance (78% Stress)",
+      detail: "Marcus's historical on-call paging requires strict 40h capping. Do not schedule emergency incident shifts during Week 3-4.",
+    },
+    {
+      category: "Commercial Margin",
+      severity: "Neutral",
+      title: "Blended Rate Arbitrage: 58.5% Margin",
+      detail: "Staffing Devon ($70/hr) with senior oversight rather than a second lead architect ($125/hr) saves $2,200/wk while hitting all deliverables.",
+    },
+  ],
+};
+

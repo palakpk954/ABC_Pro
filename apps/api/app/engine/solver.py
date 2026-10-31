@@ -291,11 +291,13 @@ def solve_resource_allocation(problem: OptimizationProblem) -> OptimizationResul
                         profit_terms.append(-hourly_cost_scaled * x[(e.id, r.id, w)])
 
         for w in range(1, horizon + 1):
-            ot_penalty_scaled = int(round(cfg.overtime_penalty_per_hour * SCALE))
+            # Fatigue-scaled overtime penalty: higher penalty for exhausted personnel
+            fatigue_mult = 1.0 + 1.5 * getattr(e, "burnout_risk_score", 0.15)
+            ot_penalty_scaled = int(round(cfg.overtime_penalty_per_hour * fatigue_mult * SCALE))
             profit_terms.append(-ot_penalty_scaled * overtime[(e.id, w)])
 
     # 2. Growth Score Objective
-    # Skill gap closure + stretch bonus + mentor bonus - repetition penalty
+    # Skill gap closure + stretch bonus + mentor bonus - repetition penalty + archetype synergy
     growth_terms = []
     for p in problem.projects:
         for r in p.roles:
@@ -312,15 +314,41 @@ def solve_resource_allocation(problem: OptimizationProblem) -> OptimizationResul
                     elif req.skill_name in emp.career_goals:
                         gap_val += req.min_proficiency * 20
 
+                # Check explicit 1-on-1 career aspirations from living talent dossier
+                emp_aspirations = getattr(emp, "career_aspirations", [])
+                for asp in emp_aspirations:
+                    for req in r.required_skills:
+                        if req.skill_name.lower() in asp.lower():
+                            gap_val += req.min_proficiency * 25
+
                 if gap_val > 0:
                     for w in range(1, horizon + 1):
                         if (e_id, r.id, w) in x:
                             growth_terms.append(gap_val * x[(e_id, r.id, w)])
 
-                # Stretch bonus (e.g. 500 points * SCALE)
+                # Stretch bonus (e.g. 600 points * SCALE)
                 if r.is_stretch_allowed and e_id in stretch_employees[r.id]:
                     stretch_bonus = 600 * SCALE
                     growth_terms.append(stretch_bonus * is_stretch[(e_id, r.id)])
+
+                # Archetype synergy reward
+                emp_arch = getattr(emp, "archetype", "Generalist")
+                arch_bonus = 0
+                proj_arch = getattr(p, "archetype_focus", None)
+                if proj_arch and proj_arch == emp_arch:
+                    arch_bonus = 300 * SCALE
+                elif emp_arch == "Pathfinder" and ("architect" in r.role_title.lower() or p.priority >= 5):
+                    arch_bonus = 200 * SCALE
+                elif emp_arch == "Optimizer" and ("lead" in r.role_title.lower() or "backend" in r.role_title.lower()):
+                    arch_bonus = 150 * SCALE
+                elif emp_arch == "Firefighter" and p.priority >= 4:
+                    arch_bonus = 150 * SCALE
+
+                if arch_bonus > 0:
+                    hourly_arch_bonus = max(1, arch_bonus // 20)
+                    for w in range(1, horizon + 1):
+                        if (e_id, r.id, w) in x:
+                            growth_terms.append(hourly_arch_bonus * x[(e_id, r.id, w)])
 
                 # Repetition penalty if fully overqualified (proficiency 5 in all skills, no growth target)
                 is_overqualified = all(
@@ -331,18 +359,29 @@ def solve_resource_allocation(problem: OptimizationProblem) -> OptimizationResul
                     rep_penalty = 150 * SCALE
                     growth_terms.append(-rep_penalty * a[(e_id, r.id)])
 
-    # Mentoring bonus for mentors
-    for _key, m_var in mentor_vars.items():
+    # Mentoring bonus for mentors with coaching quality scaling
+    for (m_id, mentee_id, r_id), m_var in mentor_vars.items():
+        mentor_emp = emp_map[m_id]
+        m_arch = getattr(mentor_emp, "archetype", "Generalist")
+        m_coaching = getattr(mentor_emp, "coaching_sentiment", "")
+        m_burnout = getattr(mentor_emp, "burnout_risk_score", 0.15)
+
         mentor_bonus = 400 * SCALE
+        if m_arch == "Mentor" or "Exemplary" in m_coaching or "Coach" in m_coaching:
+            mentor_bonus += 250 * SCALE
+        if m_burnout >= 0.50:
+            mentor_bonus -= 150 * SCALE
         growth_terms.append(mentor_bonus * m_var)
 
-    # 3. Workload Balance Penalty
-    # Penalize overtime and over-utilization (>90% standard capacity = >36 hrs)
+    # 3. Workload Balance Penalty with Fatigue Scaling
+    # Penalize overtime and over-utilization
     balance_penalty_terms = []
     for e in problem.employees:
+        burnout_factor = getattr(e, "burnout_risk_score", 0.15)
+        sustainable_threshold = 32 if burnout_factor >= 0.50 else 36
         for w in range(1, horizon + 1):
             if w not in e.leave_weeks:
-                # Excess hours above 36
+                # Excess hours above sustainable threshold
                 excess_util = model.NewIntVar(0, e.weekly_capacity_hours + e.max_overtime_hours, f"excess_{e.id}_{w}")
                 assigned_hours = [
                     x[(e.id, r.id, w)]
@@ -350,8 +389,9 @@ def solve_resource_allocation(problem: OptimizationProblem) -> OptimizationResul
                     for r in p.roles
                     if (e.id, r.id, w) in x
                 ]
-                model.Add(excess_util >= sum(assigned_hours) - 36)
-                balance_penalty_terms.append(30 * SCALE * excess_util)
+                model.Add(excess_util >= sum(assigned_hours) - sustainable_threshold)
+                penalty_rate = int(round(30 * (1.0 + burnout_factor) * SCALE))
+                balance_penalty_terms.append(penalty_rate * excess_util)
 
     # Composite Scalar Objective
     # Total = profit_weight * profit + growth_weight * growth - balance_weight * balance
@@ -509,7 +549,15 @@ def solve_resource_allocation(problem: OptimizationProblem) -> OptimizationResul
 
                             skill_gap_total += (role_growth_val * hrs) / 40.0
 
-                            # Explainability reasons
+                            # Cognitive Explainability telemetry
+                            emp_arch = getattr(emp, "archetype", "Generalist")
+                            emp_burnout = getattr(emp, "burnout_risk_score", 0.15)
+                            emp_coaching = getattr(emp, "coaching_sentiment", "Collaborative Contributor")
+                            
+                            # Estimate weekly margin contribution
+                            avg_proj_wk_rev = p.revenue / max(1, (r.end_week - r.start_week + 1))
+                            est_margin_contribution = round(avg_proj_wk_rev - (emp.cost_per_hour * hrs), 0)
+
                             reasons = {
                                 "skill_match": [sr.skill_name for sr in r.required_skills],
                                 "cost_per_hour": emp.cost_per_hour,
@@ -517,7 +565,20 @@ def solve_resource_allocation(problem: OptimizationProblem) -> OptimizationResul
                                 "mentor": matched_mentor_name,
                                 "target_skills_developed": matched_skills,
                                 "growth_contribution": round(role_growth_val, 2),
+                                "archetype": emp_arch,
+                                "archetype_fit": f"{emp_arch} archetype well-suited for {r.role_title}",
+                                "burnout_risk_score": emp_burnout,
+                                "burnout_mitigation": (
+                                    f"Sustainably allocated at {hrs}h/w (Fatigue Index: {int(emp_burnout * 100)}%)"
+                                    if emp_burnout < 0.50
+                                    else f"Allocated with fatigue guardrails (Fatigue Index: {int(emp_burnout * 100)}%)"
+                                ),
+                                "margin_contribution": f"+${est_margin_contribution:,.0f} weekly gross contribution",
                             }
+                            if matched_mentor_name and matched_mentor_id:
+                                mentor_obj = emp_map.get(matched_mentor_id)
+                                mentor_sentiment = getattr(mentor_obj, "coaching_sentiment", "Certified Mentor") if mentor_obj else "Certified Mentor"
+                                reasons["mentor_synergy"] = f"Paired with {matched_mentor_name} ({mentor_sentiment})"
 
                             assignments_result.append(
                                 AssignmentResult(
@@ -565,6 +626,14 @@ def solve_resource_allocation(problem: OptimizationProblem) -> OptimizationResul
         balance_penalty=balance_penalty_realized,
         utilization_variance=0.0,
         overutilization_penalty=0.0,
+        archetype_synergy_score=round(sum(
+            250.0 if (a.reasons.get("archetype") in ["Pathfinder", "Optimizer", "Firefighter", "Mentor"]) else 0.0
+            for a in assignments_result
+        ), 1),
+        burnout_fatigue_penalty=round(sum(
+            a.hours * a.reasons.get("burnout_risk_score", 0.15) * 4.0
+            for a in assignments_result
+        ), 1),
     )
 
     return OptimizationResult(

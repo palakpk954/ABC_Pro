@@ -13,6 +13,8 @@ from app.schemas.plan import (
     AssignmentOverrideRequest,
     AssignmentResponse,
     ParetoPointResponse,
+    PlanChatRequest,
+    PlanChatResponse,
     PlanDetailResponse,
     PlanGenerateRequest,
     PlanSummaryResponse,
@@ -228,3 +230,71 @@ def reject_plan(
         db=db,
     )
     return _hydrate_plan_detail(updated_plan, db)
+
+
+@router.get("/{plan_id}/advisory")
+def get_plan_advisory(
+    plan_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Cognitive Resource Manager advisory and natural executive commentary for a plan.
+    Emulates an empathetic, commercially astute RM examining margins, burnout, stretch learning,
+    and mentorship chemistry.
+    """
+    plan = (
+        db.query(Plan)
+        .options(
+            joinedload(Plan.assignments).joinedload(Assignment.employee).joinedload(Employee.dossier),
+            joinedload(Plan.assignments).joinedload(Assignment.mentor),
+            joinedload(Plan.assignments).joinedload(Assignment.project_role).joinedload(ProjectRole.project),
+        )
+        .filter(Plan.id == plan_id, Plan.org_id == current_user.org_id)
+        .first()
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    from app.services.cognitive_advisor import CognitiveAdvisorService
+    return CognitiveAdvisorService.generate_plan_advisory(plan=plan, db=db)
+
+
+@router.post("/{plan_id}/chat", response_model=PlanChatResponse)
+def chat_with_advisor(
+    plan_id: str,
+    req: PlanChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Interactive conversation with AI Resource Manager 'Alex'.
+    Answers questions on staffing rationale, burnout mitigation, margin health,
+    and What-If scenarios with living dossier citations.
+    """
+    plan = (
+        db.query(Plan)
+        .options(
+            joinedload(Plan.assignments).joinedload(Assignment.employee).joinedload(Employee.dossier),
+            joinedload(Plan.assignments).joinedload(Assignment.mentor),
+            joinedload(Plan.assignments).joinedload(Assignment.project_role).joinedload(ProjectRole.project),
+        )
+        .filter(Plan.id == plan_id, Plan.org_id == current_user.org_id)
+        .first()
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    from app.services.cognitive_advisor import CognitiveAdvisorService
+    history_dicts = (
+        [{"role": msg.role, "content": msg.content} for msg in req.history]
+        if req.history
+        else None
+    )
+    return CognitiveAdvisorService.answer_advisor_query(
+        plan=plan,
+        query=req.query,
+        history=history_dicts,
+        db=db,
+    )
+

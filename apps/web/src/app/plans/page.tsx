@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { TimelineGantt } from "@/components/plans/TimelineGantt";
 import { ParetoChart } from "@/components/plans/ParetoChart";
 import { AssignmentModal } from "@/components/plans/AssignmentModal";
-import { MOCK_PLAN, MOCK_EMPLOYEES, MOCK_PROJECTS, MOCK_PARETO } from "@/lib/mockData";
-import { Plan, Employee, Project, Assignment, ParetoPoint } from "@/lib/api";
+import { CognitiveAdvisorPanel } from "@/components/plans/CognitiveAdvisorPanel";
+import { AdvisorChatDrawer } from "@/components/advisor/AdvisorChatDrawer";
+import { MOCK_PLAN, MOCK_EMPLOYEES, MOCK_PROJECTS, MOCK_PARETO, MOCK_ADVISORY } from "@/lib/mockData";
+import { Plan, Employee, Project, Assignment, ParetoPoint, CognitiveAdvisory, getPlanAdvisory } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { 
   Sliders, 
@@ -14,7 +16,8 @@ import {
   ShieldCheck, 
   Play, 
   CheckCircle2, 
-  FileCheck
+  FileCheck,
+  Bot
 } from "lucide-react";
 
 export default function PlansPage() {
@@ -22,9 +25,12 @@ export default function PlansPage() {
   const [employees, setEmployees] = useState<Employee[]>(MOCK_EMPLOYEES);
   const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS);
   const [paretoPoints, setParetoPoints] = useState<ParetoPoint[]>(MOCK_PARETO);
+  const [advisory, setAdvisory] = useState<CognitiveAdvisory>(MOCK_ADVISORY);
   const [sliderValue, setSliderValue] = useState<number>(0.35); // 0 = 100% Profit, 1 = 100% Growth
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [isSolving, setIsSolving] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInitialPrompt, setChatInitialPrompt] = useState<string | undefined>(undefined);
   const [feasibilityStatus, setFeasibilityStatus] = useState<{
     checked: boolean;
     feasible: boolean;
@@ -35,6 +41,21 @@ export default function PlansPage() {
   // Profit vs Growth weights computed from slider
   const profitWeight = parseFloat((1 - sliderValue).toFixed(2));
   const growthWeight = parseFloat(sliderValue.toFixed(2));
+
+  // Fetch real advisory if backend is connected
+  useEffect(() => {
+    async function loadAdvisory() {
+      try {
+        const liveAdvisory = await getPlanAdvisory(plan.id);
+        if (liveAdvisory) {
+          setAdvisory(liveAdvisory);
+        }
+      } catch (e) {
+        // Fallback to MOCK_ADVISORY already set
+      }
+    }
+    loadAdvisory();
+  }, [plan.id]);
 
   // Toggle lock state on assignment
   const handleToggleLock = (assignmentId: string) => {
@@ -76,28 +97,41 @@ export default function PlansPage() {
     setTimeout(() => setNotification(null), 4000);
   };
 
+  const handleOpenChat = (prompt?: string) => {
+    setChatInitialPrompt(prompt);
+    setIsChatOpen(true);
+  };
+
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-6 animate-fadeIn pb-16">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="rounded-md bg-indigo-50 dark:bg-indigo-500/10 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20">
-              Deterministic CP-SAT Engine
+              Deterministic CP-SAT &bull; Cognitive RM
             </span>
             <span className="text-xs text-muted-foreground font-mono">
               Status: <strong className="text-emerald-600 dark:text-emerald-400 uppercase">{plan.status}</strong>
             </span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Staffing Optimization & Tradeoff Tuning
+            Staffing Optimization &amp; Cognitive Advisory
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Tune the single profit-versus-growth slider to sweep the Pareto frontier and inspect structured explanations.
+            Tune profit-versus-growth tradeoffs, review living dossier justifications, and consult Alex (AI Resource Manager).
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleOpenChat()}
+            id="header-consult-alex-btn"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-3.5 py-2 text-xs font-semibold text-white hover:opacity-95 transition-all shadow-md shadow-indigo-600/20"
+          >
+            <Bot className="h-4 w-4" />
+            Ask Alex
+          </button>
           <button
             onClick={handlePreSolveCheck}
             id="pre-solve-check-btn"
@@ -130,6 +164,12 @@ export default function PlansPage() {
           <span>{feasibilityStatus.message}</span>
         </div>
       )}
+
+      {/* Cognitive Advisory Panel */}
+      <CognitiveAdvisorPanel
+        advisory={advisory}
+        onOpenChat={(prompt) => handleOpenChat(prompt)}
+      />
 
       {/* Tradeoff Slider & Pareto Curve Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -243,6 +283,15 @@ export default function PlansPage() {
         assignment={selectedAssignment}
         onClose={() => setSelectedAssignment(null)}
         onToggleLock={handleToggleLock}
+      />
+
+      {/* Conversational RM Advisory Drawer ('Alex') */}
+      <AdvisorChatDrawer
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        planId={plan.id}
+        planName={plan.name}
+        initialPrompt={chatInitialPrompt}
       />
     </div>
   );

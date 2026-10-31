@@ -271,3 +271,84 @@ export async function uploadDossierFiles(
 export async function getEmployeeDossier(employeeId: string): Promise<EmployeeDossier> {
   return fetchApi<EmployeeDossier>(`/dossier/${employeeId}`);
 }
+
+export interface AdvisoryCommercialHealth {
+  net_profit: number;
+  gross_revenue: number;
+  gross_margin_pct: number;
+  labor_cost: number;
+  overtime_cost: number;
+  commercial_rating: string;
+}
+
+export interface MentorshipPairing {
+  mentee_id: string;
+  mentee_name: string;
+  mentor_id?: string;
+  mentor_name: string;
+  coaching_sentiment: string;
+  project_name: string;
+  role_title: string;
+}
+
+export interface FatigueMitigationAlert {
+  name: string;
+  fatigue_pct: number;
+  max_week_hours: number;
+  status: string;
+  recommendation: string;
+}
+
+export interface CognitiveAdvisory {
+  plan_id: string;
+  plan_name: string;
+  advisor_name: string;
+  executive_summary: string;
+  commercial_health: AdvisoryCommercialHealth;
+  people_and_chemistry: {
+    active_staff_count: number;
+    mentorship_pairings: MentorshipPairing[];
+    stretch_assignments: any[];
+    archetype_distribution: Record<string, number>;
+    fatigue_mitigation_alerts: FatigueMitigationAlert[];
+  };
+  strategic_recommendations: {
+    category: string;
+    severity: string;
+    title: string;
+    detail: string;
+  }[];
+}
+
+export interface PlanChatCitation {
+  source_title: string;
+  source_type: string;
+  snippet: string;
+  confidence?: number;
+}
+
+export interface PlanChatResponse {
+  answer: string;
+  advisor_name: string;
+  citations: PlanChatCitation[];
+  suggested_followups: string[];
+  relevant_employee_ids: string[];
+}
+
+/** Fetch cognitive advisory executive commentary for a plan */
+export async function getPlanAdvisory(planId: string): Promise<CognitiveAdvisory> {
+  return fetchApi<CognitiveAdvisory>(`/plans/${planId}/advisory`);
+}
+
+/** Interact with Alex, the cognitive Resource Manager partner */
+export async function chatWithAdvisor(
+  planId: string,
+  query: string,
+  history?: { role: string; content: string }[]
+): Promise<PlanChatResponse> {
+  return fetchApi<PlanChatResponse>(`/plans/${planId}/chat`, {
+    method: "POST",
+    body: JSON.stringify({ query, history }),
+  });
+}
+

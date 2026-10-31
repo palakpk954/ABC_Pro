@@ -114,3 +114,29 @@ class AssignmentOverrideRequest(BaseModel):
 class PlanStatusUpdateRequest(BaseModel):
     status: str  # approved, rejected, draft
     comment: Optional[str] = None
+
+
+class PlanChatMessage(BaseModel):
+    role: str  # user, assistant, system
+    content: str
+
+
+class PlanChatCitation(BaseModel):
+    source_title: str
+    source_type: str  # dossier, solver, review, performance, goal
+    snippet: str
+    confidence: Optional[float] = None
+
+
+class PlanChatRequest(BaseModel):
+    query: str
+    history: Optional[List[PlanChatMessage]] = None
+
+
+class PlanChatResponse(BaseModel):
+    answer: str
+    advisor_name: str = "Alex (Cognitive RM)"
+    citations: List[PlanChatCitation] = Field(default_factory=list)
+    suggested_followups: List[str] = Field(default_factory=list)
+    relevant_employee_ids: List[str] = Field(default_factory=list)
+

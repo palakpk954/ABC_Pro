@@ -45,12 +45,13 @@ def build_optimization_problem_from_db(
     plan_start_date: date,
 ) -> OptimizationProblem:
     """Translates database entities for a tenant into an OptimizationProblem."""
-    # 1. Fetch active employees with skills and leaves
+    # 1. Fetch active employees with skills, leaves, and living dossiers
     db_employees = (
         db.query(Employee)
         .options(
             joinedload(Employee.skills).joinedload(EmployeeSkill.skill),
             joinedload(Employee.leaves),
+            joinedload(Employee.dossier),
         )
         .filter(Employee.org_id == org_id, Employee.is_active.is_(True))
         .all()
@@ -78,6 +79,12 @@ def build_optimization_problem_from_db(
                 leave_weeks.add(w)
 
         career_goals = emp.career_goals if isinstance(emp.career_goals, list) else []
+        dossier = emp.dossier
+        archetype = dossier.archetype if dossier else "Generalist"
+        burnout = dossier.burnout_risk_score if dossier else 0.15
+        coaching = dossier.coaching_sentiment if dossier else "Collaborative Contributor"
+        stretch_readiness = dossier.stretch_readiness_score if dossier else 0.75
+        aspirations = (dossier.career_aspirations if (dossier and dossier.career_aspirations) else career_goals) or []
 
         employees.append(
             EmployeeInput(
@@ -90,6 +97,11 @@ def build_optimization_problem_from_db(
                 skills=skills_dict,
                 leave_weeks=leave_weeks,
                 career_goals=career_goals,
+                archetype=archetype,
+                burnout_risk_score=burnout,
+                coaching_sentiment=coaching,
+                stretch_readiness_score=stretch_readiness,
+                career_aspirations=aspirations,
             )
         )
 
