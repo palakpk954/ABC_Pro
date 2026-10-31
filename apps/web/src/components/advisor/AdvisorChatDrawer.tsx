@@ -72,7 +72,7 @@ export function AdvisorChatDrawer({
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [groqKey, setGroqKey] = useState<string>("");
   const [tempKey, setTempKey] = useState<string>("");
-  const [selectedModel, setSelectedModel] = useState<string>("llama-3.3-70b-versatile");
+  const [selectedModel, setSelectedModel] = useState<string>("qwen/qwen3.8-27b");
   const [keySavedToast, setKeySavedToast] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -283,8 +283,9 @@ export function AdvisorChatDrawer({
                       onChange={(e) => setSelectedModel(e.target.value)}
                       className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
-                      <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile (Flagship RM Brain)</option>
-                      <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant (Ultra-fast)</option>
+                      <option value="qwen/qwen3.8-27b">Qwen 3.8 27B (Groq Open-Source Flagship)</option>
+                      <option value="openai/gpt-oss-120b">GPT-OSS 120B (High Reasoning)</option>
+                      <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Versatile)</option>
                     </select>
                   </div>
 

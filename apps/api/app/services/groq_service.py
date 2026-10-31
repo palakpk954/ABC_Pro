@@ -24,8 +24,8 @@ from app.models.skill import EmployeeSkill, Skill
 logger = logging.getLogger(__name__)
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
-FALLBACK_GROQ_MODEL = "llama-3.1-8b-instant"
+DEFAULT_GROQ_MODEL = "qwen/qwen3.8-27b"
+FALLBACK_GROQ_MODELS = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "llama-3.3-70b-versatile"]
 
 
 class GroqAdvisorService:
@@ -81,12 +81,14 @@ class GroqAdvisorService:
         cls, plan: Plan, db: Session, query: str
     ) -> Dict[str, Any]:
         """
-        Retrieves live database snapshots: employees, dossiers, skills,
-        active projects, and current allocation plan telemetry.
+        Retrieves compact, relevant enterprise RAG context.
+        Selects top relevant candidates and high-fatigue sentinels to fit comfortably
+        within Groq free tier rate limits (< 2,500 tokens).
         """
         org_id = plan.org_id
+        q_lower = query.lower()
 
-        # 1. Fetch Employees with full Dossiers & Skills
+        # 1. Fetch Active Employees
         employees = (
             db.query(Employee)
             .options(
@@ -97,100 +99,87 @@ class GroqAdvisorService:
             .all()
         )
 
-        emp_catalog = []
+        # Keyword relevance scoring
+        scored_emps = []
         for emp in employees:
             dossier = emp.dossier
-            skill_list = [
-                {
-                    "name": es.skill.name if es.skill else "Unknown",
-                    "proficiency": es.proficiency,
-                    "growth_target": es.growth_target,
-                }
-                for es in (emp.skills or [])
-                if es.skill
-            ]
+            skills = {es.skill.name: es.proficiency for es in (emp.skills or []) if es.skill}
+            match_score = sum(
+                prof * 15
+                for s_name, prof in skills.items()
+                if s_name.lower() in q_lower or any(word in s_name.lower() for word in q_lower.split())
+            )
+            burnout = dossier.burnout_risk_score if dossier else 0.15
+            aspirations = dossier.career_aspirations if dossier else (emp.career_goals or [])
+
+            scored_emps.append({
+                "emp": emp,
+                "dossier": dossier,
+                "skills": skills,
+                "match_score": match_score,
+                "burnout": burnout,
+                "aspirations": aspirations,
+            })
+
+        # Top relevant candidates + high burnout sentinels
+        scored_emps.sort(key=lambda x: x["match_score"], reverse=True)
+        top_candidates = scored_emps[:7]
+
+        # Ensure high fatigue engineers are present to analyze burnout protection
+        high_fatigue = [s for s in scored_emps if s["burnout"] >= 0.50 and s not in top_candidates][:2]
+        selected_records = top_candidates + high_fatigue
+
+        emp_catalog = []
+        for r in selected_records:
+            emp = r["emp"]
+            d = r["dossier"]
             emp_catalog.append({
                 "id": emp.id,
                 "name": emp.name,
                 "role": emp.role,
                 "cost_per_hour": emp.cost_per_hour,
-                "weekly_capacity": emp.weekly_capacity_hours,
-                "archetype": dossier.archetype if dossier else "Generalist",
-                "archetype_rationale": dossier.archetype_rationale if dossier else None,
-                "burnout_risk_score": dossier.burnout_risk_score if dossier else 0.15,
-                "burnout_factors": dossier.burnout_factors if dossier else [],
-                "coaching_sentiment": dossier.coaching_sentiment if dossier else "Contributor",
-                "client_facing_comfort": dossier.client_facing_comfort if dossier else "Moderate",
-                "career_aspirations": dossier.career_aspirations if dossier else (emp.career_goals or []),
-                "stretch_readiness": dossier.stretch_readiness_score if dossier else 0.75,
-                "strengths": dossier.strengths_summary if dossier else [],
-                "growth_areas": dossier.growth_areas if dossier else [],
-                "skills": skill_list,
+                "archetype": d.archetype if d else "Generalist",
+                "burnout_risk_pct": int(r["burnout"] * 100),
+                "coaching_sentiment": d.coaching_sentiment if d else "Contributor",
+                "career_aspirations": r["aspirations"][:2],
+                "skills": {k: v for k, v in list(r["skills"].items())[:6]},
             })
 
-        # 2. Fetch Projects and Required Roles
+        # 2. Fetch Active Projects
         projects = (
             db.query(Project)
-            .options(
-                joinedload(Project.roles).joinedload(ProjectRole.skill_requirements)
-            )
+            .options(joinedload(Project.roles))
             .filter(Project.org_id == org_id)
+            .limit(4)
             .all()
         )
 
-        proj_catalog = []
-        for p in projects:
-            roles = [
-                {
-                    "role_title": r.role_title,
-                    "hours_per_week": r.hours_per_week,
-                    "is_stretch_allowed": r.is_stretch_allowed,
-                }
-                for r in (p.roles or [])
-            ]
-            proj_catalog.append({
-                "id": p.id,
+        proj_catalog = [
+            {
                 "name": p.name,
                 "client": p.client,
-                "revenue": p.revenue,
-                "status": p.status,
-                "priority": p.priority,
-                "roles": roles,
-            })
+                "budget_revenue": p.revenue,
+                "roles": [r.role_title for r in (p.roles or [])[:3]],
+            }
+            for p in projects
+        ]
 
-        # 3. Active Plan Metrics & Current Assignments
-        assignments = plan.assignments or []
+        # 3. Active Plan Metrics
         breakdown = plan.objective_breakdown or {}
         profit = plan.profit_score or 0.0
         revenue = breakdown.get("revenue", 0.0)
         gross_margin_pct = round((profit / revenue * 100), 1) if revenue > 0 else 0.0
 
-        current_assignments = []
-        for a in assignments:
-            current_assignments.append({
-                "employee_name": a.employee.name if a.employee else "Unknown",
-                "employee_id": a.employee_id,
-                "role": a.project_role.role_title if a.project_role else "Role",
-                "project": a.project_role.project.name if (a.project_role and a.project_role.project) else "Project",
-                "week": a.week_number,
-                "hours": a.hours,
-                "is_stretch": a.is_stretch,
-                "mentor": a.mentor.name if a.mentor else None,
-            })
-
         return {
-            "employees": emp_catalog,
-            "projects": proj_catalog,
+            "selected_talent_dossiers": emp_catalog,
+            "sample_active_projects": proj_catalog,
             "plan_metrics": {
                 "name": plan.name,
-                "status": plan.status.value if hasattr(plan.status, "value") else str(plan.status),
                 "profit": profit,
                 "revenue": revenue,
                 "gross_margin_pct": gross_margin_pct,
-                "dropped_projects": plan.dropped_project_reasons or {},
             },
-            "current_assignments_sample": current_assignments[:15],
-            "total_employees": len(emp_catalog),
+            "total_company_roster_size": len(employees),
         }
 
     @classmethod
@@ -251,10 +240,25 @@ class GroqAdvisorService:
             "response_format": {"type": "json_object"},
         }
 
-        with httpx.Client(timeout=35.0) as client:
-            resp = client.post(GROQ_API_URL, headers=headers, json=payload)
-            if resp.status_code != 200:
-                logger.error(f"Groq API returned error {resp.status_code}: {resp.text}")
+        models_to_try = [model] + [m for m in FALLBACK_GROQ_MODELS if m != model]
+        
+        with httpx.Client(timeout=45.0) as client:
+            resp = None
+            used_model = model
+            for candidate_model in models_to_try:
+                payload["model"] = candidate_model
+                resp = client.post(GROQ_API_URL, headers=headers, json=payload)
+                if resp.status_code == 200:
+                    used_model = candidate_model
+                    break
+                elif resp.status_code == 404:
+                    logger.warning(f"Groq model {candidate_model} returned 404; trying fallback.")
+                    continue
+                else:
+                    logger.error(f"Groq API returned error {resp.status_code}: {resp.text}")
+                    break
+
+            if not resp or resp.status_code != 200:
                 return None
 
             data = resp.json()
@@ -263,13 +267,13 @@ class GroqAdvisorService:
 
             return {
                 "answer": parsed.get("answer", raw_content),
-                "advisor_name": f"Alex (Digital RM &bull; Groq {model.split('-')[0].capitalize()})",
+                "advisor_name": f"Alex (Digital RM &bull; Groq {used_model.split('/')[-1]})",
                 "citations": parsed.get("citations", []),
                 "suggested_followups": parsed.get("suggested_followups", []),
                 "relevant_employee_ids": parsed.get("relevant_employee_ids", []),
-                "model_used": model,
+                "model_used": used_model,
                 "is_llm_generated": True,
-                "thought_process": parsed.get("thought_process", "Analyzed roster skills, archetypes, and burnout guardrails."),
+                "thought_process": parsed.get("thought_process", "Analyzed roster skills, archetypes, and burnout guardrails with Groq LLM."),
             }
 
     @classmethod
