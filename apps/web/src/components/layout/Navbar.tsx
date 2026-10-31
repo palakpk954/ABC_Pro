@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { loginAsPersona } from "@/lib/api";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
@@ -41,6 +42,16 @@ export function Navbar() {
   const [currentPersona, setCurrentPersona] = useState(PERSONAS[0]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    loginAsPersona(currentPersona.email);
+  }, []);
+
+  const handleSelectPersona = (p: (typeof PERSONAS)[0]) => {
+    setCurrentPersona(p);
+    setDropdownOpen(false);
+    loginAsPersona(p.email);
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background/80 backdrop-blur-xl transition-colors duration-200">
