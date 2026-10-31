@@ -249,6 +249,30 @@ class CognitiveAdvisorService:
         query: str,
         history: Optional[List[Dict[str, str]]],
         db: Session,
+        groq_api_key: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Consults Alex (Digital Resource Manager) powered by Groq LLM (Llama 3.3 70B)
+        with full enterprise RAG context, or multi-factor dynamic analytical engine.
+        """
+        from app.services.groq_service import GroqAdvisorService
+        return GroqAdvisorService.consult_advisor(
+            plan=plan,
+            query=query,
+            history=history,
+            db=db,
+            groq_api_key=groq_api_key,
+            model=model,
+        )
+
+    @classmethod
+    def _legacy_answer_advisor_query(
+        cls,
+        plan: Plan,
+        query: str,
+        history: Optional[List[Dict[str, str]]],
+        db: Session,
     ) -> Dict[str, Any]:
         """
         Conversational reasoning partner ("Alex") answering user questions about the plan,

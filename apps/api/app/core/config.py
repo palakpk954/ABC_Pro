@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Optional, Union
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     PROJECT_NAME: str = "Allocate"
     API_V1_STR: str = "/api/v1"
+    
+    # AI / LLM Cognitive RM (Groq)
+    GROQ_API_KEY: Optional[str] = None
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
     
     # Database
     DATABASE_URL: str = "sqlite:///./allocate.db"

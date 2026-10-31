@@ -15,6 +15,12 @@ import {
   CornerDownLeft,
   ChevronDown,
   ChevronUp,
+  Key,
+  Cpu,
+  Settings,
+  ShieldCheck,
+  BrainCircuit,
+  ExternalLink,
 } from "lucide-react";
 
 interface ChatMessage {
@@ -24,6 +30,9 @@ interface ChatMessage {
   citations?: PlanChatCitation[];
   suggestedFollowups?: string[];
   timestamp: string;
+  modelUsed?: string;
+  isLlmGenerated?: boolean;
+  thoughtProcess?: string;
 }
 
 interface AdvisorChatDrawerProps {
@@ -45,11 +54,11 @@ export function AdvisorChatDrawer({
     {
       id: "msg-init",
       role: "assistant",
-      content: `Hello! I am **Alex**, your Cognitive Resource Manager partner. I have analyzed the staffing allocation, living talent dossiers, burnout signals, and margin targets for **${planName}**.\n\nAsk me anything about why an engineer was staffed, how we are safeguarding against burnout, or how to tune margins!`,
+      content: `Hello! I am **Alex**, your Digital Resource Manager. I analyze staffing feasibility, living talent dossiers, burnout signals, and margin targets for **${planName}**.\n\nAsk me about project proposals, tech stack staffing (e.g. Django, FastAPI, React), mentor pairings, burnout protections, or financial margins!`,
       suggestedFollowups: [
+        "We have a new project from ABC Limited for a Django/FastAPI app. What are your suggestions?",
         "Why did you assign Devon to the Fintech project?",
-        "How is Marcus's burnout risk being handled?",
-        "What is our portfolio gross margin?",
+        "How is Marcus Vance's burnout risk being handled?",
       ],
       timestamp: "Just now",
     },
@@ -57,7 +66,38 @@ export function AdvisorChatDrawer({
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [expandedCitations, setExpandedCitations] = useState<Record<string, boolean>>({});
+  const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({});
+  
+  // Groq LLM Configuration State
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [groqKey, setGroqKey] = useState<string>("");
+  const [tempKey, setTempKey] = useState<string>("");
+  const [selectedModel, setSelectedModel] = useState<string>("llama-3.3-70b-versatile");
+  const [keySavedToast, setKeySavedToast] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load Groq Key from LocalStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedKey = localStorage.getItem("allocate_groq_api_key") || "";
+      const savedModel = localStorage.getItem("allocate_groq_model") || "llama-3.3-70b-versatile";
+      setGroqKey(savedKey);
+      setTempKey(savedKey);
+      setSelectedModel(savedModel);
+    }
+  }, []);
+
+  const handleSaveGroqConfig = () => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("allocate_groq_api_key", tempKey.trim());
+      localStorage.setItem("allocate_groq_model", selectedModel);
+      setGroqKey(tempKey.trim());
+      setKeySavedToast(true);
+      setTimeout(() => setKeySavedToast(false), 2500);
+      setIsConfigOpen(false);
+    }
+  };
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -73,6 +113,10 @@ export function AdvisorChatDrawer({
 
   const toggleCitation = (msgId: string) => {
     setExpandedCitations((prev) => ({ ...prev, [msgId]: !prev[msgId] }));
+  };
+
+  const toggleThought = (msgId: string) => {
+    setExpandedThoughts((prev) => ({ ...prev, [msgId]: !prev[msgId] }));
   };
 
   const handleSendMessage = async (textToSend?: string) => {
@@ -97,8 +141,14 @@ export function AdvisorChatDrawer({
         content: m.content,
       }));
 
-      // Call API
-      const res: PlanChatResponse = await chatWithAdvisor(planId, text, history);
+      // Call API with Groq API Key and Model
+      const res: PlanChatResponse = await chatWithAdvisor(
+        planId,
+        text,
+        history,
+        groqKey || undefined,
+        selectedModel
+      );
 
       const assistantMsg: ChatMessage = {
         id: `assistant-${Date.now()}`,
@@ -107,6 +157,9 @@ export function AdvisorChatDrawer({
         citations: res.citations,
         suggestedFollowups: res.suggested_followups,
         timestamp: "Just now",
+        modelUsed: res.model_used,
+        isLlmGenerated: res.is_llm_generated,
+        thoughtProcess: res.thought_process,
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
@@ -120,6 +173,8 @@ export function AdvisorChatDrawer({
         citations: fallbackResponse.citations,
         suggestedFollowups: fallbackResponse.suggested_followups,
         timestamp: "Just now",
+        modelUsed: "local-analytical-engine",
+        isLlmGenerated: false,
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } finally {
@@ -129,37 +184,127 @@ export function AdvisorChatDrawer({
 
   if (!isOpen) return null;
 
+  const isLlmActive = Boolean(groqKey && groqKey.length > 10);
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 dark:bg-black/75 backdrop-blur-sm animate-fadeIn flex justify-end">
       <div className="relative w-full max-w-xl h-full bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-white/10 shadow-2xl flex flex-col animate-slideLeft">
+        
         {/* Drawer Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-slate-900/80 backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <div className="relative flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20">
-              <Bot className="h-5 w-5" />
-              <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900">
-                <Sparkles className="h-1.5 w-1.5 text-white" />
-              </span>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Alex &bull; Cognitive RM</h3>
-                <span className="rounded bg-emerald-100 dark:bg-emerald-500/20 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800 dark:text-emerald-300">
-                  Online
+        <div className="p-4 border-b border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-slate-900/80 backdrop-blur-md">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20">
+                <Bot className="h-5 w-5" />
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900">
+                  <Sparkles className="h-1.5 w-1.5 text-white" />
                 </span>
               </div>
-              <p className="text-[11px] text-muted-foreground truncate max-w-[260px]">
-                Grounding answers in CP-SAT telemetry &amp; Living Dossiers
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Alex &bull; Digital Resource Manager</h3>
+                  <span className="rounded bg-emerald-100 dark:bg-emerald-500/20 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800 dark:text-emerald-300">
+                    Online
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground truncate max-w-[280px]">
+                  Living Talent Dossiers &bull; CP-SAT &bull; Cognitive Reasoning
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setIsConfigOpen((v) => !v)}
+                title="Configure Groq AI Brain"
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all border",
+                  isLlmActive
+                    ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/40"
+                    : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                )}
+              >
+                <Cpu className="h-3 w-3 text-purple-500" />
+                <span>{isLlmActive ? "Llama 3.3 70B" : "AI Settings"}</span>
+              </button>
+
+              <button
+                onClick={onClose}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          {/* Collapsible Groq AI Configuration Panel */}
+          {isConfigOpen && (
+            <div className="mt-3 p-3.5 rounded-xl bg-gradient-to-b from-indigo-50/70 to-purple-50/40 dark:from-indigo-950/40 dark:to-purple-950/20 border border-indigo-200/80 dark:border-indigo-800/40 text-xs space-y-2.5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-bold text-indigo-950 dark:text-indigo-200">
+                  <Key className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Connect Groq Open-Source LLM (Free)</span>
+                </div>
+                <a
+                  href="https://console.groq.com/keys"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-semibold"
+                >
+                  Get free key <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              </div>
+
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                Connect your free Groq API key to activate unconstrained generative reasoning powered by <strong>Llama-3.3-70B</strong>. Zero credit card required.
+              </p>
+
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                    Groq API Key (gsk_...)
+                  </label>
+                  <input
+                    type="password"
+                    value={tempKey}
+                    onChange={(e) => setTempKey(e.target.value)}
+                    placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                      Model Architecture
+                    </label>
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile (Flagship RM Brain)</option>
+                      <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant (Ultra-fast)</option>
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={handleSaveGroqConfig}
+                    className="mt-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-3 py-1.5 text-xs shadow-sm transition-all"
+                  >
+                    Save Key
+                  </button>
+                </div>
+              </div>
+
+              {keySavedToast && (
+                <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-bold text-[11px]">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Groq AI Key active! Alex will now think using Llama 3.3 70B.</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Message Thread */}
@@ -186,6 +331,50 @@ export function AdvisorChatDrawer({
                     : "bg-slate-50 dark:bg-slate-800/80 border border-slate-200/90 dark:border-white/10 text-slate-800 dark:text-slate-100 shadow-sm"
                 )}
               >
+                {/* Assistant Metadata Badge */}
+                {msg.role === "assistant" && (
+                  <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-white/5 pb-1.5 mb-1 text-[10px] text-muted-foreground">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      Alex &bull; Digital Resource Manager
+                    </span>
+                    {msg.isLlmGenerated ? (
+                      <span className="flex items-center gap-1 font-mono font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-1.5 py-0.2 rounded">
+                        <Cpu className="h-2.5 w-2.5" />
+                        Groq Llama-3.3-70B
+                      </span>
+                    ) : (
+                      <span className="font-mono text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded">
+                        Analytical Engine
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* RM Chain-of-Thought Telemetry Accordion */}
+                {msg.thoughtProcess && (
+                  <div className="rounded-lg bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 p-2 text-[11px]">
+                    <button
+                      onClick={() => toggleThought(msg.id)}
+                      className="flex items-center justify-between w-full text-indigo-800 dark:text-indigo-300 font-semibold"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <BrainCircuit className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+                        RM Cognitive Reasoning Trace
+                      </span>
+                      {expandedThoughts[msg.id] ? (
+                        <ChevronUp className="h-3 w-3" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3" />
+                      )}
+                    </button>
+                    {expandedThoughts[msg.id] && (
+                      <div className="mt-1.5 text-slate-600 dark:text-slate-300 font-mono text-[10px] whitespace-pre-wrap leading-tight">
+                        {msg.thoughtProcess}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Message Body */}
                 <div className="whitespace-pre-line font-sans">
                   {msg.content}
@@ -264,7 +453,7 @@ export function AdvisorChatDrawer({
               </div>
               <div className="rounded-2xl bg-slate-100 dark:bg-slate-800 p-3.5 text-xs text-muted-foreground flex items-center gap-2">
                 <Sparkles className="h-3.5 w-3.5 animate-spin text-indigo-500" />
-                <span>Alex is synthesizing living dossiers &amp; CP-SAT telemetry...</span>
+                <span>Alex is evaluating living talent dossiers &amp; CP-SAT constraints...</span>
               </div>
             </div>
           )}
@@ -285,7 +474,7 @@ export function AdvisorChatDrawer({
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask Alex about staffing, burnout, or tradeoffs..."
+              placeholder="Ask Alex about project proposals, staffing, burnout, or margins..."
               className="flex-1 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-xs text-slate-900 dark:text-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-xs"
             />
             <button
@@ -297,7 +486,7 @@ export function AdvisorChatDrawer({
             </button>
           </form>
           <div className="mt-2 text-center text-[10px] text-muted-foreground">
-            Alex synthesizes living performance reviews, 360 feedback, and deterministic OR-Tools objectives.
+            Alex analyzes living performance reviews, 360 feedback, and deterministic OR-Tools objectives.
           </div>
         </div>
       </div>
@@ -331,10 +520,10 @@ function generateLocalFallback(query: string): PlanChatResponse {
     const techDisplay = detectedTech.length > 0 ? detectedTech.join(", ") : "FastAPI, Django & Python";
 
     return {
-      advisor_name: "Alex (Cognitive RM)",
+      advisor_name: "Alex (Digital RM &bull; Analytical Engine)",
       answer:
-        `**Strategic Staffing Proposal for ${clientName} (${techDisplay} Web Application):**\n\n` +
-        `To deliver high technical velocity while maintaining strong blended margins and shielding staff from burnout, I recommend the following squad configuration:\n\n` +
+        `**Cognitive Staffing Proposal for ${clientName} (${techDisplay} Web Application):**\n\n` +
+        `As your Digital Resource Manager, I evaluated our living talent dossiers across four dimensions:\n\n` +
         `1. **Technical Lead / Cloud Architect: Sarah Chen ($125/hr)**\n` +
         `   - **Archetype**: *Pathfinder* (0-to-1 Architecture & Greenfield MVP Builder).\n` +
         `   - **Competency**: 5/5 Python & Distributed Systems. Ideal for establishing clean async FastAPI/Django route patterns, relational database schema modeling, and Docker deployment.\n` +
@@ -378,12 +567,14 @@ function generateLocalFallback(query: string): PlanChatResponse {
         "What is the estimated delivery timeline with this squad?",
       ],
       relevant_employee_ids: ["emp-1", "emp-4", "emp-3", "emp-2"],
+      model_used: "local-analytical-engine",
+      is_llm_generated: false,
     };
   }
 
   if (q.includes("devon")) {
     return {
-      advisor_name: "Alex (Cognitive RM)",
+      advisor_name: "Alex (Digital RM &bull; Analytical Engine)",
       answer:
         "**Why Devon Brooks was staffed on Fintech Real-Time Ledger:**\n\n1. **Strategic Stretch Alignment**: Devon possesses Level 3 Python and is placed on a sanctioned stretch role, accelerating his explicit career goal of mastering high-throughput backend architecture.\n2. **Certified Mentorship Pairing**: He is paired with Principal Architect **Sarah Chen** (Exemplary Coach), who reserves 10% capacity for architecture reviews.\n3. **Margin Contribution**: Billing Devon at $70/hr instead of a second senior ($125/hr) saves $2,200/wk while hitting delivery milestones at a 58.5% portfolio gross margin.",
       citations: [
@@ -406,12 +597,14 @@ function generateLocalFallback(query: string): PlanChatResponse {
         "What is our portfolio gross margin?",
       ],
       relevant_employee_ids: ["emp-4", "emp-1"],
+      model_used: "local-analytical-engine",
+      is_llm_generated: false,
     };
   }
 
   if (q.includes("marcus") || q.includes("burnout") || q.includes("fatigue")) {
     return {
-      advisor_name: "Alex (Cognitive RM)",
+      advisor_name: "Alex (Digital RM &bull; Analytical Engine)",
       answer:
         "**Burnout & Fatigue Protection for Marcus Vance:**\n\n- **Fatigue Stress Score**: **78%** (high historical emergency on-call paging).\n- **Solver Safeguards**: The CP-SAT engine dynamically scaled overtime penalties by $(1 + 1.5 \\cdot \\beta_e)$, capping his weekly workload to a sustainable 40h/w without overtime spikes.\n- **Actionable Recommendation**: Avoid scheduling emergency incident shifts for Marcus during Sprint 3-4 to prevent attrition.",
       citations: [
@@ -427,11 +620,13 @@ function generateLocalFallback(query: string): PlanChatResponse {
         "What is the cost of bringing in a contractor backfill?",
       ],
       relevant_employee_ids: ["emp-2"],
+      model_used: "local-analytical-engine",
+      is_llm_generated: false,
     };
   }
 
   return {
-    advisor_name: "Alex (Cognitive RM)",
+    advisor_name: "Alex (Digital RM &bull; Analytical Engine)",
     answer:
       "**Executive Plan Assessment from Alex:**\n\nThis allocation plan achieves a **58.5% Gross Margin** ($412,500 net profit) while maintaining healthy squad chemistry. We have successfully paired rising talent under senior mentorship and constrained overtime on high-fatigue engineers.",
     citations: [
@@ -448,6 +643,7 @@ function generateLocalFallback(query: string): PlanChatResponse {
       "What if we slide the Pareto tradeoff slider to 100% Profit?",
     ],
     relevant_employee_ids: [],
+    model_used: "local-analytical-engine",
+    is_llm_generated: false,
   };
 }
-

@@ -131,6 +131,8 @@ class PlanChatCitation(BaseModel):
 class PlanChatRequest(BaseModel):
     query: str
     history: Optional[List[PlanChatMessage]] = None
+    groq_api_key: Optional[str] = None
+    model: Optional[str] = None
 
 
 class PlanChatResponse(BaseModel):
@@ -139,4 +141,7 @@ class PlanChatResponse(BaseModel):
     citations: List[PlanChatCitation] = Field(default_factory=list)
     suggested_followups: List[str] = Field(default_factory=list)
     relevant_employee_ids: List[str] = Field(default_factory=list)
+    model_used: Optional[str] = None
+    is_llm_generated: bool = False
+    thought_process: Optional[str] = None
 

@@ -485,5 +485,7 @@ def chat_with_advisor(
         query=req.query,
         history=history_dicts,
         db=db,
+        groq_api_key=req.groq_api_key,
+        model=req.model,
     )
 

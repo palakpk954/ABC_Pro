@@ -333,6 +333,9 @@ export interface PlanChatResponse {
   citations: PlanChatCitation[];
   suggested_followups: string[];
   relevant_employee_ids: string[];
+  model_used?: string;
+  is_llm_generated?: boolean;
+  thought_process?: string;
 }
 
 /** Fetch cognitive advisory executive commentary for a plan */
@@ -344,11 +347,18 @@ export async function getPlanAdvisory(planId: string): Promise<CognitiveAdvisory
 export async function chatWithAdvisor(
   planId: string,
   query: string,
-  history?: { role: string; content: string }[]
+  history?: { role: string; content: string }[],
+  groqApiKey?: string,
+  model?: string
 ): Promise<PlanChatResponse> {
   return fetchApi<PlanChatResponse>(`/plans/${planId}/chat`, {
     method: "POST",
-    body: JSON.stringify({ query, history }),
+    body: JSON.stringify({
+      query,
+      history,
+      groq_api_key: groqApiKey,
+      model,
+    }),
   });
 }
 
