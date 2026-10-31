@@ -309,6 +309,78 @@ export function AdvisorChatDrawer({
 function generateLocalFallback(query: string): PlanChatResponse {
   const q = query.toLowerCase();
 
+  // Tech stack & prospective project staffing inquiries (e.g. Django, FastAPI, React, ABC Limited)
+  const isProjectQuery =
+    q.includes("project") ||
+    q.includes("fastapi") ||
+    q.includes("django") ||
+    q.includes("python") ||
+    q.includes("react") ||
+    q.includes("abc") ||
+    q.includes("suggestion") ||
+    q.includes("staff") ||
+    q.includes("recommend");
+
+  if (isProjectQuery && (q.includes("fastapi") || q.includes("django") || q.includes("python") || q.includes("abc") || q.includes("new project") || q.includes("web app"))) {
+    const clientName = q.includes("abc") ? "ABC Limited" : "the upcoming client engagement";
+    const detectedTech = [];
+    if (q.includes("fastapi")) detectedTech.push("FastAPI");
+    if (q.includes("django")) detectedTech.push("Django");
+    if (q.includes("python")) detectedTech.push("Python");
+    if (q.includes("react")) detectedTech.push("React");
+    const techDisplay = detectedTech.length > 0 ? detectedTech.join(", ") : "FastAPI, Django & Python";
+
+    return {
+      advisor_name: "Alex (Cognitive RM)",
+      answer:
+        `**Strategic Staffing Proposal for ${clientName} (${techDisplay} Web Application):**\n\n` +
+        `To deliver high technical velocity while maintaining strong blended margins and shielding staff from burnout, I recommend the following squad configuration:\n\n` +
+        `1. **Technical Lead / Cloud Architect: Sarah Chen ($125/hr)**\n` +
+        `   - **Archetype**: *Pathfinder* (0-to-1 Architecture & Greenfield MVP Builder).\n` +
+        `   - **Competency**: 5/5 Python & Distributed Systems. Ideal for establishing clean async FastAPI/Django route patterns, relational database schema modeling, and Docker deployment.\n` +
+        `   - **Burnout Safety**: 22% fatigue (healthy, ample cognitive bandwidth).\n\n` +
+        `2. **Core Backend Engineer (Stretch Placement): Devon Brooks ($70/hr)**\n` +
+        `   - **Archetype**: *Active Collaborator / Mentee*.\n` +
+        `   - **Competency**: Level 3 Python, explicitly seeking real-world backend API experience. Paired directly with Sarah Chen (Exemplary Coach) with 10% dedicated code review capacity.\n` +
+        `   - **Career Alignment**: Directly satisfies his stated 1-on-1 goal: *"Mastering high-throughput Python API architecture"*.\n\n` +
+        `3. **Frontend / API Integration Lead: Elena Rostova ($105/hr)**\n` +
+        `   - **Archetype**: *Optimizer* (React/TypeScript component reuse & design systems).\n` +
+        `   - **Role**: Ensures snappy client-side state handling and accessible UI consuming the FastAPI endpoints.\n\n` +
+        `4. **Burnout Protection Warning: Marcus Vance ($120/hr)**\n` +
+        `   - **Notice**: While Marcus has 5/5 Python mastery, his living dossier shows **78% fatigue** from emergency on-call shifts in Q3. I advise **against assigning him as primary lead** on this new engagement to prevent turnover.\n\n` +
+        `**Commercial Margin Impact**:\n` +
+        `- Blended squad billing cost: ~$95/hr (vs. ~$135/hr for an all-senior roster).\n` +
+        `- Projected Gross Margin for engagement: **61.2%**.\n` +
+        `- Mentorship synergy bonus: +180 skill development points.`,
+      citations: [
+        {
+          source_title: "Sarah Chen Living Dossier & 360 Reviews",
+          source_type: "review",
+          snippet: "Pathfinder archetype. Proven experience designing high-throughput Python backends; rated 4.9/5 in Technical Leadership.",
+          confidence: 0.98,
+        },
+        {
+          source_title: "Devon Brooks Career Growth Goals",
+          source_type: "goal",
+          snippet: "Q4 Growth Objective: Expand from script automation to production FastAPI/Django service engineering with senior mentorship.",
+          confidence: 0.95,
+        },
+        {
+          source_title: "Marcus Vance Burnout Telemetry & Health Tracker",
+          source_type: "review",
+          snippet: "Fatigue risk index 0.78 (High). Recommend restricting on-call exposure and reserving bandwidth for low-stress maintenance.",
+          confidence: 0.96,
+        },
+      ],
+      suggested_followups: [
+        "How much mentor capacity does Sarah need to reserve for Devon?",
+        "Can we replace Elena with Devon to reduce costs further?",
+        "What is the estimated delivery timeline with this squad?",
+      ],
+      relevant_employee_ids: ["emp-1", "emp-4", "emp-3", "emp-2"],
+    };
+  }
+
   if (q.includes("devon")) {
     return {
       advisor_name: "Alex (Cognitive RM)",

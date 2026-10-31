@@ -283,6 +283,75 @@ class CognitiveAdvisorService:
         suggested_followups: List[str] = []
         relevant_ids: List[str] = []
 
+        # 0. New Project Staffing & Tech Stack Recommendations
+        is_project_query = (
+            any(k in q_lower for k in ["new project", "oncoming", "create a", "build a", "suggestions for", "staff a", "who can build", "who should lead", "how should we staff", "recommendation for"]) or
+            (any(k in q_lower for k in ["django", "fastapi", "react", "python", "kubernetes"]) and any(k in q_lower for k in ["project", "application", "app", "work", "client", "suggestions", "who", "squad", "team"]))
+        )
+
+        if is_project_query:
+            detected_techs = []
+            if "fastapi" in q_lower: detected_techs.append("FastAPI")
+            if "django" in q_lower: detected_techs.append("Django")
+            if "python" in q_lower: detected_techs.append("Python")
+            if "react" in q_lower: detected_techs.append("React")
+            if not detected_techs: detected_techs = ["Python", "FastAPI / Django", "API Architecture"]
+            tech_str = ", ".join(detected_techs)
+
+            client_str = "ABC Limited" if "abc" in q_lower else "the oncoming client engagement"
+
+            answer = (
+                f"**Strategic Staffing Proposal for {client_str} ({tech_str} Web Application):**\n\n"
+                f"To deliver high technical velocity while maintaining strong blended margins and shielding staff from burnout, I recommend the following squad configuration:\n\n"
+                f"1. **Technical Lead / Cloud Architect: Sarah Chen ($125/hr)**\n"
+                f"   - **Archetype**: *Pathfinder* (0-to-1 Architecture & Greenfield MVP Builder).\n"
+                f"   - **Competency**: 5/5 Python & Distributed Systems. Perfect for establishing clean async FastAPI/Django route patterns, relational database schema modeling, and Docker deployment.\n"
+                f"   - **Burnout Safety**: 22% fatigue (healthy, ample cognitive bandwidth).\n\n"
+                f"2. **Core Backend Engineer (Stretch Placement): Devon Brooks ($70/hr)**\n"
+                f"   - **Archetype**: *Mentor / Active Collaborator*.\n"
+                f"   - **Competency**: Level 3 Python, explicitly seeking real-world backend API experience. Paired directly with Sarah Chen (Exemplary Coach) with 10% dedicated code review capacity.\n"
+                f"   - **Career Alignment**: Directly satisfies his stated 1-on-1 goal: *\"Mastering high-throughput Python API architecture\"*.\n\n"
+                f"3. **Frontend / API Integration Lead: Elena Rostova ($105/hr)**\n"
+                f"   - **Archetype**: *Optimizer* (React/TypeScript component reuse & design systems).\n"
+                f"   - **Role**: Ensures snappy client-side state handling and accessible UI consuming the FastAPI endpoints.\n\n"
+                f"4. **Burnout Protection Warning: Marcus Vance ($120/hr)**\n"
+                f"   - **Notice**: While Marcus has 5/5 Python mastery, his living dossier shows **78% fatigue** from emergency on-call shifts in Q3. I advise **against assigning him as primary lead** on this new engagement to prevent turnover.\n\n"
+                f"**Commercial Margin Impact**:\n"
+                f"- Blended squad billing cost: ~$95/hr (vs. ~$135/hr for an all-senior roster).\n"
+                f"- Generates an estimated **58.5% to 62.0% gross margin** assuming standard client billing rates ($180-$220/hr).\n"
+                f"- Eliminates risk of single-point-of-failure by fostering knowledge sharing between Sarah and Devon."
+            )
+            citations.append({
+                "source_title": "Sarah Chen Living Dossier & Performance Reviews",
+                "source_type": "dossier",
+                "snippet": "Pathfinder archetype. Proven mastery in greenfield async Python architecture and clean domain modeling.",
+                "confidence": 0.96,
+            })
+            citations.append({
+                "source_title": "Devon Brooks 1-on-1 Career Goals",
+                "source_type": "goal",
+                "snippet": "Career goal: 'Mastering Python API architecture and distributed ledgers'. Stretch readiness score: 85%.",
+                "confidence": 0.94,
+            })
+            citations.append({
+                "source_title": "Marcus Vance Wellness Telemetry",
+                "source_type": "review",
+                "snippet": "Fatigue score: 78%. Flagged for workload throttling to protect from consecutive on-call stress.",
+                "confidence": 0.95,
+            })
+            suggested_followups = [
+                "Simulate adding ABC Limited as a What-If scenario",
+                "Why pair Devon Brooks instead of hiring a senior contractor?",
+                "What is the estimated delivery velocity with this squad?",
+            ]
+            return {
+                "answer": answer,
+                "advisor_name": "Alex (Cognitive RM)",
+                "citations": citations,
+                "suggested_followups": suggested_followups,
+                "relevant_employee_ids": ["emp-1", "emp-4", "emp-2"],
+            }
+
         # 1. Individual Employee Match Check
         matched_emp_id = None
         for eid, data in emp_records.items():

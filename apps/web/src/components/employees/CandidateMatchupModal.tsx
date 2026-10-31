@@ -357,3 +357,4 @@ export function CandidateMatchupModal({
     </div>
   );
 }
+
