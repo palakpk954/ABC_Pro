@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { chatWithAdvisor, PlanChatResponse, PlanChatCitation } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
 import {
   X,
   Send,
@@ -381,9 +382,11 @@ export function AdvisorChatDrawer({
                 )}
 
                 {/* Message Body */}
-                <div className="whitespace-pre-line font-sans">
-                  {msg.content}
-                </div>
+                {msg.role === "assistant" ? (
+                  <MarkdownRenderer content={msg.content} />
+                ) : (
+                  <div className="whitespace-pre-line font-sans">{msg.content}</div>
+                )}
 
                 {/* Citations Box */}
                 {msg.citations && msg.citations.length > 0 && (
