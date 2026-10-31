@@ -81,10 +81,14 @@ export function AdvisorChatDrawer({
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedKey = localStorage.getItem("allocate_groq_api_key") || "";
-      const savedModel = localStorage.getItem("allocate_groq_model") || "llama-3.3-70b-versatile";
+      const savedModel = localStorage.getItem("allocate_groq_model");
+      const activeModel =
+        savedModel && savedModel !== "llama-3.3-70b-versatile" && savedModel !== "llama-3.1-8b-instant"
+          ? savedModel
+          : "qwen/qwen3.8-27b";
       setGroqKey(savedKey);
       setTempKey(savedKey);
-      setSelectedModel(savedModel);
+      setSelectedModel(activeModel);
     }
   }, []);
 

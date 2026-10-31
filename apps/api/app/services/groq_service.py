@@ -191,7 +191,7 @@ class GroqAdvisorService:
         history: Optional[List[Dict[str, str]]],
         rag_context: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
-        """Invokes Groq API with Llama 3.3 70B and structured JSON schema."""
+        """Invokes Groq API with robust prompt engineering and adaptive fallbacks."""
         system_prompt = (
             "You are Alex, an elite Human-like Digital Resource Manager & VP of Talent Operations. "
             "You emulate a seasoned, empathetic, and commercially astute executive who understands both people and business.\n\n"
@@ -201,31 +201,24 @@ class GroqAdvisorService:
             "3. Protect employees from burnout (flag anyone with burnout risk >= 0.50 or high on-call stress).\n"
             "4. Foster career growth through intentional stretch pairings (pair rising talent with exemplary mentors reserving 10% capacity for code reviews).\n"
             "5. Protect commercial margins (calculate blended billing rates vs costs and gross margin percentages).\n"
-            "6. Answer responsibly, transparently, and authoritatively. Do NOT sound like an apologetic AI assistant or a mechanical spreadsheet.\n\n"
+            "6. Answer responsibly, transparently, and authoritatively.\n\n"
             "ENTERPRISE RAG CONTEXT (Real Database Snapshot):\n"
             f"{json.dumps(rag_context, indent=2)}\n\n"
-            "OUTPUT FORMAT:\n"
-            "Respond strictly in valid JSON with the following structure:\n"
-            "{\n"
-            '  "thought_process": "Brief 2-3 sentence chain-of-thought analysis of constraints, skill-gap, margins, and burnout",\n'
-            '  "answer": "Comprehensive, structured Markdown answer with bold headings, squad breakdowns, margin calculations, and explicit rationale",\n'
-            '  "citations": [\n'
-            '    {\n'
-            '      "source_title": "Employee name or Dossier/Solver title",\n'
-            '      "source_type": "dossier | solver | review | goal",\n'
-            '      "snippet": "Specific quote or evidence data point from the context",\n'
-            '      "confidence": 0.95\n'
-            '    }\n'
-            '  ],\n'
-            '  "suggested_followups": ["3 sharp, relevant follow-up questions the executive user might ask next"],\n'
-            '  "relevant_employee_ids": ["emp-ids of employees evaluated or recommended"]\n'
-            "}"
+            "FORMATTING GUIDELINE:\n"
+            "Provide a well-structured response using GitHub-flavored Markdown with bold headings.\n"
+            "At the very end of your response, you MUST include these two exact sections:\n\n"
+            "### Verified Citations\n"
+            "- **[Employee Name / Dossier / Metric]**: [Specific evidence or verified skill/data point]\n\n"
+            "### Suggested Follow-ups\n"
+            "1. [Actionable next question]\n"
+            "2. [Actionable next question]\n"
         )
 
         messages = [{"role": "system", "content": system_prompt}]
         if history:
-            for h in history[-4:]:
-                messages.append({"role": h.get("role", "user"), "content": h.get("content", "")})
+            for h in history[-3:]:
+                content_snippet = h.get("content", "")[:350]
+                messages.append({"role": h.get("role", "user"), "content": content_snippet})
         messages.append({"role": "user", "content": query})
 
         headers = {
@@ -235,45 +228,99 @@ class GroqAdvisorService:
         payload = {
             "model": model,
             "messages": messages,
-            "temperature": 0.3,
-            "max_tokens": 2048,
-            "response_format": {"type": "json_object"},
+            "temperature": 0.25,
+            "max_tokens": 700,
         }
 
-        models_to_try = [model] + [m for m in FALLBACK_GROQ_MODELS if m != model]
+        # Available active models on Groq for this account
+        models_to_try = [model] + [m for m in ["qwen/qwen3.8-27b", "openai/gpt-oss-20b", "openai/gpt-oss-120b"] if m != model]
         
-        with httpx.Client(timeout=45.0) as client:
+        with httpx.Client(timeout=40.0) as client:
             resp = None
             used_model = model
             for candidate_model in models_to_try:
                 payload["model"] = candidate_model
+                payload["max_tokens"] = 700
                 resp = client.post(GROQ_API_URL, headers=headers, json=payload)
+                
                 if resp.status_code == 200:
                     used_model = candidate_model
                     break
                 elif resp.status_code == 404:
                     logger.warning(f"Groq model {candidate_model} returned 404; trying fallback.")
                     continue
+                elif resp.status_code == 429:
+                    logger.warning(f"Groq model {candidate_model} hit rate limit (429); retrying with reduced tokens on fallback.")
+                    payload["max_tokens"] = 450
+                    retry_resp = client.post(GROQ_API_URL, headers=headers, json=payload)
+                    if retry_resp.status_code == 200:
+                        resp = retry_resp
+                        used_model = candidate_model
+                        break
+                    else:
+                        continue
                 else:
                     logger.error(f"Groq API returned error {resp.status_code}: {resp.text}")
-                    break
+                    continue
 
             if not resp or resp.status_code != 200:
                 return None
 
             data = resp.json()
-            raw_content = data["choices"][0]["message"]["content"]
-            parsed = json.loads(raw_content)
+            raw_text = data["choices"][0]["message"]["content"]
+
+            # Parse citations, follow-ups, and clean answer from markdown
+            answer_text = raw_text
+            citations = []
+            followups = []
+
+            if "### Verified Citations" in raw_text:
+                parts = raw_text.split("### Verified Citations")
+                answer_text = parts[0].strip()
+                rest = parts[1]
+
+                cit_section = rest
+                if "### Suggested Follow-ups" in rest:
+                    cit_section, follow_section = rest.split("### Suggested Follow-ups")
+                    for line in follow_section.strip().split("\n"):
+                        clean_line = re.sub(r"^[0-9\.\-\*\s]+", "", line).strip()
+                        if clean_line:
+                            followups.append(clean_line)
+
+                for line in cit_section.strip().split("\n"):
+                    m = re.match(r"^\s*[\-\*]\s*\*\*([^*]+)\*\*:\s*(.+)$", line)
+                    if m:
+                        citations.append({
+                            "source_title": m.group(1).strip(),
+                            "snippet": m.group(2).strip(),
+                            "source_type": "dossier",
+                            "confidence": 0.95,
+                        })
+
+            # Identify mentioned employee IDs from context
+            relevant_ids = []
+            dossiers = rag_context.get("selected_talent_dossiers", [])
+            for d in dossiers:
+                name = d.get("name", "")
+                if name.lower() in raw_text.lower():
+                    relevant_ids.append(d.get("id"))
+
+            if not followups:
+                followups = [
+                    "What are the margin implications of this staffing recommendation?",
+                    "How does this affect our team's burnout and on-call exposure?",
+                    "Can we simulate this as a What-If scenario in the active plan?",
+                ]
 
             return {
-                "answer": parsed.get("answer", raw_content),
+                "answer": answer_text,
                 "advisor_name": f"Alex (Digital RM &bull; Groq {used_model.split('/')[-1]})",
-                "citations": parsed.get("citations", []),
-                "suggested_followups": parsed.get("suggested_followups", []),
-                "relevant_employee_ids": parsed.get("relevant_employee_ids", []),
+                "citations": citations,
+                "suggested_followups": followups[:3],
+                "relevant_employee_ids": relevant_ids,
                 "model_used": used_model,
                 "is_llm_generated": True,
-                "thought_process": parsed.get("thought_process", "Analyzed roster skills, archetypes, and burnout guardrails with Groq LLM."),
+                "thought_process": f"Reasoned with {used_model} over {len(dossiers)} living talent dossiers, skill gaps, and solver margins.",
             }
 
     @classmethod
